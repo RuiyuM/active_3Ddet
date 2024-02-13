@@ -50,8 +50,8 @@ class MonteCarloSampling(Strategy):
                     
                     
                     # did not apply batch mask -> directly output 
-                    cls_var = torch.var(torch.sigmoid(pred_dicts[0]['rcnn_cls']), 0).mean()
-                    reg_var = torch.var(pred_dicts[0]['rcnn_reg'], 0).mean()
+                    cls_var = torch.var(torch.sigmoid(pred_dicts[0]['batch_rcnn_cls']), 0).mean()
+                    reg_var = torch.var(pred_dicts[0]['batch_rcnn_reg'], 0).mean()
                     
 
                     """ Aggregate all the boxes values in one point cloud """

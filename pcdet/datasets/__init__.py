@@ -81,6 +81,7 @@ def build_active_dataloader(dataset_cfg, class_names, batch_size, dist, root_pat
                             logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0,
                             active_training=None):
 
+    # kitti validation 和 training 是一个dataset 拆出来的
     dataset = __all__[dataset_cfg.DATASET](
         dataset_cfg=dataset_cfg,
         class_names=class_names,
@@ -88,7 +89,7 @@ def build_active_dataloader(dataset_cfg, class_names, batch_size, dist, root_pat
         training=training,
         logger=logger,
     )
-
+    # 这个__all__ 相当于用一个dict 简化了 import 然后 if else的各种逻辑
     labelled_set = __all__[dataset_cfg.DATASET](
         dataset_cfg=dataset_cfg,
         class_names=class_names,

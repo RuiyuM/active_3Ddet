@@ -85,6 +85,7 @@ class BaseBEVBackbone(nn.Module):
                 spatial_features
         Returns:
         """
+        # 这个 function 就是 extract and refine features and upsamples
         spatial_features = data_dict['spatial_features']
         ups = []
         ret_dict = {}

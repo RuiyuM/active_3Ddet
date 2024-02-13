@@ -25,7 +25,8 @@ from train_utils.train_active_utils import train_model_active
 
 
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4"
+# os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4"
+os.environ["CUDA_VISIBLE_DEVICES"]="2,3,4"
 os.environ["CUDA_LAUNCH_BLOCKING"]="1"
 # torch.cuda.set_device(0,1,2)
 
@@ -124,7 +125,7 @@ def main():
         os.system('cp %s %s' % (args.cfg_file, output_dir))
 
 
-        wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_train', entity="user", tags=args.cfg_file.split('/')[-1].split('.')[0])
+        wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_train', entity="data-efficient-lab", tags=args.cfg_file.split('/')[-1].split('.')[0])
         run_name_elements = [cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0]] + [cfg.TAG] + [cfg.ACTIVE_TRAIN.PRE_TRAIN_EPOCH_NUMS] + [cfg.ACTIVE_TRAIN.SELECT_LABEL_EPOCH_INTERVAL] + \
         [cfg.ACTIVE_TRAIN.PRE_TRAIN_SAMPLE_NUMS] + [cfg.ACTIVE_TRAIN.SELECT_NUMS] + [datetime.datetime.now().strftime('%Y%m%d-%H%M%S')]
         run_name_elements = '_'.join([str(i) for i in run_name_elements])

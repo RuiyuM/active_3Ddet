@@ -331,6 +331,8 @@ class Detector3DTemplate(nn.Module):
                 else:
                     label_preds = label_preds + 1
                 if not isinstance(cls_preds, list):
+                    #responsible for reducing the number of predicted bounding boxes by eliminating
+                    # redundant boxes that cover the same object.
                     selected, selected_scores = model_nms_utils.class_agnostic_nms(
                         box_scores=cls_confs, box_preds=box_preds,
                         nms_config=post_process_cfg.NMS_CONFIG,

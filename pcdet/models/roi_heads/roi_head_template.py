@@ -90,7 +90,7 @@ class RoIHeadTemplate(nn.Module):
             else:
                 selected, selected_scores = class_agnostic_nms(
                     box_scores=cur_roi_scores, box_preds=box_preds, nms_config=nms_config
-                )
+                )# 这个funtion 是根据confidence 和 box overlap 来选sample
 
             rois[index, :len(selected), :] = box_preds[selected]
             roi_scores[index, :len(selected)] = cur_roi_scores[selected]

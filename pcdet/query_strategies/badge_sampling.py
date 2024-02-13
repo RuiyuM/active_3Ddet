@@ -88,6 +88,7 @@ class BadgeSampling(Strategy):
                     rpn_preds = pred_dicts[0]['rpn_preds']
                     batch_size = rpn_preds.shape[0]
                     rpn_preds = torch.argmax(rpn_preds.view(batch_size, -1, self.model.dense_head.num_class), -1)
+                    rpn_preds = rpn_preds + 1
                     rpn_preds_results.append(rpn_preds.cpu())
                     # cls_results.append(torch.mean(torch.sigmoid(pred_dicts[0]['rcnn_cls']), 0).view(batch_size, -1, 1))
                     # reg_results.append(torch.mean(pred_dicts[0]['rcnn_reg'], 0).view(batch_size, -1, 7))

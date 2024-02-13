@@ -18,7 +18,7 @@ from pcdet.models import build_network
 from pcdet.utils import common_utils
 import wandb
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4"
+os.environ["CUDA_VISIBLE_DEVICES"]="1,2,3,4"
 os.environ["CUDA_LAUNCH_BLOCKING"]="1"
 
 
@@ -39,7 +39,7 @@ def parse_config():
     parser.add_argument('--max_waiting_mins', type=int, default=0, help='max waiting minutes')
     parser.add_argument('--start_epoch', type=int, default=0, help='')
     parser.add_argument('--eval_tag', type=str, default='default', help='eval tag for this experiment')
-    parser.add_argument('--eval_all', action='store_true', default=True, help='whether to evaluate all checkpoints')
+    parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--eval_backbone', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--ckpt_dir', type=str, default=None, help='specify a ckpt directory to be evaluated if needed')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
@@ -61,7 +61,8 @@ def parse_config():
 
 def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=False):
     # load checkpoint
-    model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test)
+    checkpoint_path = os.path.join(args.ckpt_dir, args.ckpt)
+    model.load_params_from_file(filename=checkpoint_path, logger=logger, to_cpu=dist_test)
     model.cuda()
 
     # start evaluation
@@ -102,9 +103,9 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
     if cfg.LOCAL_RANK == 0:
         tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
         if cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] == 'waymo_dataset':
-            wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_test_select-{}'.format(cfg.ACTIVE_TRAIN.SELECT_NUMS), entity='user')
+            wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_test_select-{}'.format(cfg.ACTIVE_TRAIN.SELECT_NUMS), entity="data-efficient-lab")
         elif cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] == 'kitti_dataset':
-            wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_test_select-{}'.format(cfg.ACTIVE_TRAIN.SELECT_NUMS), entity='user')
+            wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_test_select-{}'.format(cfg.ACTIVE_TRAIN.SELECT_NUMS), entity="data-efficient-lab")
         else:
             raise NotImplementedError
         run_name_elements = [cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0]] + ['backbone' if args.eval_backbone else cfg.TAG] + [cfg.ACTIVE_TRAIN.PRE_TRAIN_EPOCH_NUMS] + [cfg.ACTIVE_TRAIN.SELECT_LABEL_EPOCH_INTERVAL] + [cfg.ACTIVE_TRAIN.PRE_TRAIN_SAMPLE_NUMS] + [cfg.ACTIVE_TRAIN.SELECT_NUMS]
@@ -209,6 +210,8 @@ def main():
     log_config_to_file(cfg, logger=logger)
 
     ckpt_dir = args.ckpt_dir if args.ckpt_dir is not None else output_dir / 'ckpt'
+
+    args.ckpt_dir = ckpt_dir
 
     test_set, test_loader, sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,

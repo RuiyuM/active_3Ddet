@@ -18,7 +18,7 @@ from pcdet.models import build_network
 from pcdet.utils import common_utils
 import wandb
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ["CUDA_LAUNCH_BLOCKING"]="1"
 
 
@@ -39,7 +39,7 @@ def parse_config():
     parser.add_argument('--max_waiting_mins', type=int, default=1, help='max waiting minutes')
     parser.add_argument('--start_epoch', type=int, default=0, help='')
     parser.add_argument('--eval_tag', type=str, default='default', help='eval tag for this experiment')
-    parser.add_argument('--eval_all', action='store_true', default=True, help='whether to evaluate all checkpoints')
+    parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--eval_backbone', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--ckpt_dir', type=str, default=None, help='specify a ckpt directory to be evaluated if needed')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
@@ -61,16 +61,59 @@ def parse_config():
     return args, cfg
 
 
-def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=False):
-    # load checkpoint
-    model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test)
-    model.cuda()
+def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, cur_epoch_id, dist_test=False):
+    # eval_utils.vis_one_epoch(
+    #     cfg, model, test_loader, epoch_id, logger, dist_test=dist_test,
+    #     result_dir=eval_output_dir, save_to_file=args.save_to_file
+    # )
+    ckpt_record_file = eval_output_dir / ('vis_list_%s.txt' % cfg.DATA_CONFIG.DATA_SPLIT['test'])
+    with open(ckpt_record_file, 'a'):
+        pass
+    if cfg.LOCAL_RANK == 0:
+        tb_log = SummaryWriter(
+            log_dir=str(eval_output_dir / ('tensorboard_vis_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
+        # wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_vis', entity='user')
+        wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_vis_select-{}'.format(
+            cfg.ACTIVE_TRAIN.SELECT_NUMS), entity="data-efficient-lab")
+        run_name_elements = [cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0]] + [
+            'backbone' if args.eval_backbone else cfg.TAG] + [cfg.ACTIVE_TRAIN.PRE_TRAIN_EPOCH_NUMS] + [
+                                cfg.ACTIVE_TRAIN.SELECT_LABEL_EPOCH_INTERVAL] + [
+                                cfg.ACTIVE_TRAIN.PRE_TRAIN_SAMPLE_NUMS] + [cfg.ACTIVE_TRAIN.SELECT_NUMS]
+        run_name_elements = '_'.join([str(i) for i in run_name_elements])
+        wandb.run.name = run_name_elements
+        wandb.config.update(args)
+        wandb.config.update(cfg)
 
     # start evaluation
-    eval_utils.eval_one_epoch(
-        cfg, model, test_loader, epoch_id, logger, dist_test=dist_test,
-        result_dir=eval_output_dir, save_to_file=args.save_to_file
+    cur_result_dir = eval_output_dir
+    tb_dict = eval_utils.vis_one_epoch(
+        cfg, model, test_loader, cur_epoch_id, logger, dist_test=dist_test,
+        result_dir=cur_result_dir, save_to_file=args.save_to_file
     )
+    # cur_epoch_id = str(int(cur_epoch_id) - 40)
+    # active_label_files = glob.glob(str(args.set_cfgs / 'active_label' / 'selected_frames_epoch_*.pkl'))
+
+    # active_label_files = [active_label_file]
+    num_bbox = 0
+    for i in range(6):
+        z = i + 1
+        new_epoch_id = str(int(cur_epoch_id) - z *40)
+        active_label_file = os.path.join(args.set_cfgs, 'active_label',
+                                         f'selected_frames_epoch_{new_epoch_id}_rank_0.pkl')
+        with open(active_label_file, 'rb') as f:
+            records = pickle.load(f)
+            num_bbox += sum([sum(i.values()) for i in records['selected_bbox']])
+
+    num_bbox = int(num_bbox)
+    if cfg.LOCAL_RANK == 0:
+        for key, val in tb_dict.items():
+            tb_log.add_scalar(key, val, num_bbox)
+            wandb.log({key: val}, step=num_bbox)
+
+    # record this epoch which has been evaluated
+    with open(ckpt_record_file, 'a') as f:
+        print('%s' % cur_epoch_id, file=f)
+    logger.info('Epoch %s has been visualised' % cur_epoch_id)
 
 
 def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
@@ -103,7 +146,7 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
     if cfg.LOCAL_RANK == 0:
         tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_vis_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
         # wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_vis', entity='user')
-        wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_vis_select-{}'.format(cfg.ACTIVE_TRAIN.SELECT_NUMS), entity='user')
+        wandb.init(project=cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0] + '_vis_select-{}'.format(cfg.ACTIVE_TRAIN.SELECT_NUMS), entity="data-efficient-lab")
         run_name_elements = [cfg.DATA_CONFIG._BASE_CONFIG_.split('/')[-1].split('.')[0]] + ['backbone' if args.eval_backbone else cfg.TAG] + [cfg.ACTIVE_TRAIN.PRE_TRAIN_EPOCH_NUMS] + [cfg.ACTIVE_TRAIN.SELECT_LABEL_EPOCH_INTERVAL] + [cfg.ACTIVE_TRAIN.PRE_TRAIN_SAMPLE_NUMS] + [cfg.ACTIVE_TRAIN.SELECT_NUMS]
         run_name_elements = '_'.join([str(i) for i in run_name_elements])
         wandb.run.name = run_name_elements
@@ -213,6 +256,8 @@ def main():
     log_config_to_file(cfg, logger=logger)
 
     ckpt_dir = args.ckpt_dir if args.ckpt_dir is not None else output_dir / 'ckpt'
+    args.set_cfgs = output_dir
+    args.ckpt_dir = ckpt_dir
 
     test_set, test_loader, sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,

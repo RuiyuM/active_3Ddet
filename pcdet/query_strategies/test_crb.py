@@ -16,12 +16,13 @@ from scipy.stats import uniform
 from sklearn.neighbors import KernelDensity
 from scipy.cluster.vq import vq
 from typing import Dict, List
+import os
+import pickle
 
-
-class CRBSampling(Strategy):
+class Test_CRBSampling(Strategy):
     def __init__(self, model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg):
 
-        super(CRBSampling, self).__init__(model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg)
+        super(Test_CRBSampling, self).__init__(model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg)
 
         # coefficients controls the ratio of selected subset
         self.k1 = getattr(cfg.ACTIVE_TRAIN.ACTIVE_CONFIG, 'K1', 5)
@@ -52,7 +53,7 @@ class CRBSampling(Strategy):
         val_dataloader_iter = iter(self.unlabelled_loader)
         val_loader = self.unlabelled_loader
         total_it_each_epoch = len(self.unlabelled_loader)
-        
+
         # feed forward the model
         if self.rank == 0:
             pbar = tqdm.tqdm(total=total_it_each_epoch, leave=leave_pbar,
@@ -66,6 +67,9 @@ class CRBSampling(Strategy):
         density_list = {}
         label_list = {}
 
+        #experiment:
+        all_pred_dicts = {}
+
         '''
         -------------  Stage 1: Consise Label Sampling ----------------------
         '''
@@ -78,10 +82,12 @@ class CRBSampling(Strategy):
             with torch.no_grad():
                 load_data_to_gpu(unlabelled_batch)
                 pred_dicts, _ = self.model(unlabelled_batch)
+
+
                 for batch_inx in range(len(pred_dicts)):
                     # save the meta information and project it to the wandb dashboard
                     self.save_points(unlabelled_batch['frame_id'][batch_inx], pred_dicts[batch_inx])
-                    
+                    all_pred_dicts[int(unlabelled_batch['frame_id'][batch_inx])] = pred_dicts[batch_inx]
                     value, counts = torch.unique(pred_dicts[batch_inx]['pred_labels'], return_counts=True)
                     if len(value) == 0:
                         entropy = 0
@@ -122,9 +128,13 @@ class CRBSampling(Strategy):
         selected_id_list, selected_infos = [], []
         unselected_id_list, unselected_infos = [], []
 
+        # save to local
+        with open(os.path.join(self.active_label_dir,
+                               'selected_all_info_epoch_{}_rank_{}.pkl'.format(cur_epoch, self.rank)), 'wb') as f:
+            pickle.dump(all_pred_dicts, f)
+        print('successfully saved selected_all_info for epoch {} for rank {}'.format(cur_epoch, self.rank))
 
 
-        
         '''
         -------------  Stage 2: Representative Prototype Selection ----------------------
         '''
@@ -166,20 +176,20 @@ class CRBSampling(Strategy):
         index_list = []
 
 
-        # start looping over the K1 samples        
+        # start looping over the K1 samples
         if self.rank == 0:
                 pbar = tqdm.tqdm(total=total_it_each_epoch, leave=leave_pbar,
                                 desc='inf_grads_unlabelled_set_epoch_%d' % cur_epoch, dynamic_ncols=True)
         for cur_it in range(total_it_each_epoch):
             try:
                 unlabelled_batch = next(grad_dataloader_iter)
-                
+
             except StopIteration:
                 unlabelled_dataloader_iter = iter(grad_loader)
                 unlabelled_batch = next(grad_dataloader_iter)
 
             load_data_to_gpu(unlabelled_batch)
-                
+
             pred_dicts, _, _= self.model(unlabelled_batch)
 
             #
@@ -189,11 +199,11 @@ class CRBSampling(Strategy):
             rcnn_reg_preds_per_sample = pred_dicts['rcnn_reg']
             rcnn_reg_gt_per_sample = reg_results[unlabelled_batch['frame_id'][0]]
 
-            
+
             cls_loss, _ = self.model.roi_head.get_box_cls_layer_loss({'rcnn_cls': rcnn_cls_preds_per_sample, 'rcnn_cls_labels': rcnn_cls_gt_per_sample})
-            
+
             reg_loss = self.model.roi_head.get_box_reg_layer_loss({'rcnn_reg': rcnn_reg_preds_per_sample, 'reg_sample_targets': rcnn_reg_gt_per_sample})
-            
+
             # clean cache
             del rcnn_cls_preds_per_sample, rcnn_cls_gt_per_sample
             del rcnn_reg_preds_per_sample, rcnn_reg_gt_per_sample
@@ -271,7 +281,7 @@ class CRBSampling(Strategy):
         if self.rank == 0:
             pbar = tqdm.tqdm(total=self.cfg.ACTIVE_TRAIN.SELECT_NUMS, leave=leave_pbar,
                              desc='global_density_div_for_epoch_%d' % cur_epoch, dynamic_ncols=True)
-        
+
         for j in range(self.cfg.ACTIVE_TRAIN.SELECT_NUMS):
             if j == 0: # initially, we randomly select a frame.
 
@@ -337,5 +347,5 @@ class CRBSampling(Strategy):
             pbar.close()
 
         self.model.eval()
-        # returned the index of acquired bounding boxes 
+        # returned the index of acquired bounding boxes
         return selected_frames

@@ -16,7 +16,7 @@ class HeightCompression(nn.Module):
             batch_dict:
                 spatial_features:
 
-        """
+        """ # stacking the 3D feature volume along the Z-axis
         encoded_spconv_tensor = batch_dict['encoded_spconv_tensor']
         spatial_features = encoded_spconv_tensor.dense()
         N, C, D, H, W = spatial_features.shape

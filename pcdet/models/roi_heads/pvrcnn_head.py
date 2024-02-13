@@ -179,7 +179,7 @@ class PVRCNNHead(RoIHeadTemplate):
                 targets_dict['loss_predictions'] = loss_predictions
         else:
             shared_features = self.shared_fc_layer(pooled_features.view(batch_size_rcnn, -1, 1))
-
+            # the above code is from figure2 FC (256, 256)
  
         rcnn_cls = self.cls_layers(shared_features).transpose(1, 2).contiguous().squeeze(dim=1)  # (B, 1 or 2)
         rcnn_reg = self.reg_layers(shared_features).transpose(1, 2).contiguous().squeeze(dim=1)  # (B, C)
@@ -225,7 +225,7 @@ class PVRCNNHead(RoIHeadTemplate):
                 )
                 batch_dict['batch_cls_preds'] = batch_cls_preds
                 batch_dict['batch_box_preds'] = batch_box_preds
-            
+            # 这个 batch—cls—preds 是active learing 用的
 
  
             

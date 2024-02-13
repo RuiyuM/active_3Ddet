@@ -8,6 +8,16 @@ from .llal_sampling import LLALSampling
 from .montecarlo_sampling import MonteCarloSampling
 from .confidence_sampling import ConfidenceSampling
 from .crb_sampling import CRBSampling
+from .test_crb import Test_CRBSampling
+from .original_crb_only_has_entropy import Entropy_only_CRBSampling
+from .crb_entropy_cls_confi import Cls_confi_CRBSampling
+from .crb_entropy_reg_confi import Regression_confi_CRBSampling
+from .crb_entropy_cls_reg_confi import Cls_Regression_CRBSampling
+from .crb_entropy_uncertainty_regression import Uncertainty_Regression_CRBSampling
+from .crb_entropy_uncertainty_only import Uncertainty_only_CRBSampling
+from .best_entropy_possible import Entropy_only_Best
+from .highest_density_variance import Highest_density
+from .double_greedy import Double_greedy
 
 __factory = {
     'random': RandomSampling,
@@ -17,7 +27,17 @@ __factory = {
     'llal': LLALSampling,
     'montecarlo': MonteCarloSampling,
     'confidence': ConfidenceSampling,
-    'crb': CRBSampling
+    'crb': CRBSampling,
+    'test_crb': Test_CRBSampling,
+    'entropy_only_crb': Entropy_only_CRBSampling,
+    'Cls_entropy_crb': Cls_confi_CRBSampling,
+    'Regression_entropy_crb': Regression_confi_CRBSampling,
+    'Cls_Regression_entropy_crb': Cls_Regression_CRBSampling,
+    'Uncertainty_Regression_crb': Uncertainty_Regression_CRBSampling,
+    'Uncertainty_only_crb': Uncertainty_only_CRBSampling,
+    'best_entropy': Entropy_only_Best,
+    'highest_density': Highest_density,
+    'Double_greedy': Double_greedy
 }
 
 def names():

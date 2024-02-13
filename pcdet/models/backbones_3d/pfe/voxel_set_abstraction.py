@@ -184,6 +184,7 @@ class VoxelSetAbstraction(nn.Module):
         Returns:
             point_bev_features: (N1 + N2 + ..., C)
         """
+        # 这个东西本质上就是把key point 转换到 feature map的大小然后match 起来
         x_idxs = (keypoints[:, 1] - self.point_cloud_range[0]) / self.voxel_size[0]
         y_idxs = (keypoints[:, 2] - self.point_cloud_range[1]) / self.voxel_size[1]
 
@@ -336,7 +337,7 @@ class VoxelSetAbstraction(nn.Module):
         Args:
             batch_dict:
                 batch_size:
-                keypoints: (B, num_keypoints, 3)
+                keypoints: (B, num_keypoints, 3) select point as key point 2048
                 multi_scale_3d_features: {
                         'x_conv4': ...
                     }
@@ -353,6 +354,8 @@ class VoxelSetAbstraction(nn.Module):
 
         point_features_list = []
         if 'bev' in self.model_cfg.FEATURES_SOURCE:
+            # the below function map the smooth feature from the feature map
+            # to the keypoint.
             point_bev_features = self.interpolate_from_bev_features(
                 keypoints, batch_dict['spatial_features'], batch_dict['batch_size'],
                 bev_stride=batch_dict['spatial_features_stride']

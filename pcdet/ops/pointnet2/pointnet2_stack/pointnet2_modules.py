@@ -87,7 +87,10 @@ class StackSAModuleMSG(nn.Module):
             new_features: (M1 + M2 ..., \sum_k(mlps[k][-1])) tensor of the new_features descriptors
         """
         new_features_list = []
+        # 下面的feature 是不同的 radius 取出来的值
         for k in range(len(self.groupers)):
+            # the new_features just select max 16 point around the radius of 0.4
+            # around the key point and save its x, y, z and orientation value.
             new_features, ball_idxs = self.groupers[k](
                 xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt, features
             )  # (M1 + M2, C, nsample)
