@@ -17,7 +17,12 @@ from .crb_entropy_uncertainty_regression import Uncertainty_Regression_CRBSampli
 from .crb_entropy_uncertainty_only import Uncertainty_only_CRBSampling
 from .best_entropy_possible import Entropy_only_Best
 from .highest_density_variance import Highest_density
-from .double_greedy import Double_greedy
+from .greedy_label_and_original_density import Double_greedy
+from .greedy_label_and_not_mean_density import Double_greedy_not_mean
+from .greedy_label_and_not_mean_density_2 import Double_greedy_not_mean_2
+from .greedy_label_and_not_mean_density_5_1_1 import Double_greedy_5_1_1
+from .select_all_cyclist_pedestrian import Select_all_cyclist_pedestrian
+from .pv_rcnn_prediction_confidence_select_as_less_car_as_possible import Uncertainty_Regression_as_less_car
 
 __factory = {
     'random': RandomSampling,
@@ -37,7 +42,12 @@ __factory = {
     'Uncertainty_only_crb': Uncertainty_only_CRBSampling,
     'best_entropy': Entropy_only_Best,
     'highest_density': Highest_density,
-    'Double_greedy': Double_greedy
+    'Double_greedy': Double_greedy,
+    'Double_greedy_no_mean': Double_greedy_not_mean,
+    'double_greedy_no_mean_2': Double_greedy_not_mean_2,
+    'double_greedy_5_1_1': Double_greedy_5_1_1,
+    'select_all_cyclist_pedestrian': Select_all_cyclist_pedestrian,
+    'Uncertainty_Regression_crb_less_car': Uncertainty_Regression_as_less_car,
 }
 
 def names():

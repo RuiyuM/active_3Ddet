@@ -82,11 +82,22 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     if cfg.LOCAL_RANK == 0:
         progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval', dynamic_ncols=True)
     start_time = time.time()
+
+    total_num_car = torch.zeros(1).to('cuda:0')
+    total_num_cyclist = torch.zeros(1).to('cuda:0')
+    total_num_pedestrain = torch.zeros(1).to('cuda:0')
+
     for i, batch_dict in enumerate(dataloader):
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
             batch_dict['test'] = True
             pred_dicts, ret_dict = model(batch_dict)
+            for infomation in pred_dicts:
+                total_num_car += infomation['num_bbox']['Car']
+                total_num_pedestrain += infomation['num_bbox']['Pedestrian']
+                total_num_cyclist += infomation['num_bbox']['Cyclist']
+
+
         disp_dict = {}
 
         statistics_info(cfg, ret_dict, metric, disp_dict)
@@ -106,6 +117,12 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         rank, world_size = common_utils.get_dist_info()
         det_annos = common_utils.merge_results_dist(det_annos, len(dataset), tmpdir=result_dir / 'tmpdir')
         metric = common_utils.merge_results_dist([metric], world_size, tmpdir=result_dir / 'tmpdir')
+
+    print("Actual counts:")
+    print(f"Total number of cars: {total_num_car.cpu().item()}")
+    print(f"Total number of cyclists: {total_num_cyclist.cpu().item()}")
+    print(f"Total number of pedestrians: {total_num_pedestrain.cpu().item()}")
+
 
     logger.info('*************** Performance of EPOCH %s *****************' % epoch_id)
     sec_per_example = (time.time() - start_time) / len(dataloader.dataset)

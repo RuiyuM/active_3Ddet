@@ -106,11 +106,22 @@ def collect_info_individual(element):
     total_num_cyclist = torch.zeros(1).to('cuda:0')
     total_num_pedestrain = torch.zeros(1).to('cuda:0')
 
+    total_num_car_pred = torch.zeros(1).to('cuda:0')
+    total_num_cyclist_pred = torch.zeros(1).to('cuda:0')
+    total_num_pedestrain_pred = torch.zeros(1).to('cuda:0')
+
     for infomation in element:
+        for i_index in range(len(infomation['pred_labels'])):
+            if infomation['pred_labels'][i_index] == 1:
+                total_num_car_pred += 1
+            elif infomation['pred_labels'][i_index] == 2:
+                total_num_pedestrain_pred += 1
+            elif infomation['pred_labels'][i_index] == 3:
+                total_num_cyclist_pred += 1
 
         total_num_car += infomation['num_bbox']['Car']
-        total_num_cyclist += infomation['num_bbox']['Pedestrian']
-        total_num_pedestrain += infomation['num_bbox']['Cyclist']
+        total_num_pedestrain += infomation['num_bbox']['Pedestrian']
+        total_num_cyclist += infomation['num_bbox']['Cyclist']
         # prediceted_entropy
         value, counts = torch.unique(infomation['pred_labels'], return_counts=True)
         if len(value) == 0:
@@ -145,6 +156,15 @@ def collect_info_individual(element):
         density_median_pred.append(pred_stat[1])
         density_variance_pred.append(pred_stat[2])
 
+    print("Actual counts:")
+    print(f"Total number of cars: {total_num_car.cpu().item()}")
+    print(f"Total number of cyclists: {total_num_cyclist.cpu().item()}")
+    print(f"Total number of pedestrians: {total_num_pedestrain.cpu().item()}")
+
+    print("\nPredicted counts:")
+    print(f"Total number of predicted cars: {total_num_car_pred.cpu().item()}")
+    print(f"Total number of predicted cyclists: {total_num_cyclist_pred.cpu().item()}")
+    print(f"Total number of predicted pedestrians: {total_num_pedestrain_pred.cpu().item()}")
     density_mean_true = calcualte_mean(density_mean_true)
     density_median_true = calcualte_mean(density_median_true)
     density_variance_true = calcualte_mean(density_variance_true)
@@ -234,131 +254,134 @@ def main():
     overall_data = []
     for i in range(1, 7):
         file_path = base_path + file_template.format(i * 40)
-        all_file_path = base_path + all_template.format(i * 40)
-        data = read_pkl_file(file_path)
+        all_file_path = base_path + all_template.format(1 * 40)
         all_data = read_pkl_file(all_file_path)
-        # new_data = collect_info(data)
-        current_all_info = []
+        data = read_pkl_file(file_path)
 
-        for j in range(len(data['frame_id'])):
-            current_all_info.append(all_data[int(data['frame_id'][j])])
+        # # new_data = collect_info(data)
+        # current_all_info = []
+        #
+        # for j in range(len(data['frame_id'])):
+        #     current_all_info.append(all_data[int(data['frame_id'][j])])
 
         extracted = collect_info_individual(current_all_info)
         overall_data.append(extracted)
 
-    density_mean_true_car = []
-    density_median_true_car = []
-    density_variance_true_car = []
-    density_mean_true_Pedestrian = []
-    density_median_true_Pedestrian = []
-    density_variance_true_Pedestrian = []
-    density_mean_true_Cyclist = []
-    density_median_true_Cyclist = []
-    density_variance_true_Cyclist = []
+    print("finished")
 
-    density_mean_predicted_car = []
-    density_median_predicted_car = []
-    density_variance_predicted_car = []
-    density_mean_predicted_Pedestrian = []
-    density_median_predicted_Pedestrian = []
-    density_variance_predicted_Pedestrian = []
-    density_mean_predicted_Cyclist = []
-    density_median_predicted_Cyclist = []
-    density_variance_predicted_Cyclist = []
-
-    predected_entropy = []
-    true_entropy = []
-    for element in overall_data:
-        density_mean_true_car.append(element[0][0])
-        density_median_true_car.append(element[1][0])
-        density_variance_true_car.append(element[2][0])
-        density_mean_true_Pedestrian.append(element[0][1])
-        density_median_true_Pedestrian.append(element[1][1])
-        density_variance_true_Pedestrian.append(element[2][1])
-        density_mean_true_Cyclist.append(element[0][2])
-        density_median_true_Cyclist.append(element[1][2])
-        density_variance_true_Cyclist.append(element[2][2])
-
-        density_mean_predicted_car.append(element[3][0])
-        density_median_predicted_car.append(element[4][0])
-        density_variance_predicted_car.append(element[5][0])
-        density_mean_predicted_Pedestrian.append(element[3][1])
-        density_median_predicted_Pedestrian.append(element[4][1])
-        density_variance_predicted_Pedestrian.append(element[5][1])
-        density_mean_predicted_Cyclist.append(element[3][2])
-        density_median_predicted_Cyclist.append(element[4][2])
-        density_variance_predicted_Cyclist.append(element[5][2])
-
-        predected_entropy.append(element[6])
-        true_entropy.append(element[7])
-
-    n_groups = len(density_mean_true_car)
-
-    # Create subplots
-    fig, axs = plt.subplots(3, 3, figsize=(15, 10))  # 3x3 grid for mean, median, variance of each class
-    fig.suptitle('Comparison of True and Predicted Densities')
-
-    # Titles for each subplot
-    titles = ['Mean Density', 'Median Density', 'Variance of Density']
-    classes = ['Car', 'Pedestrian', 'Cyclist']
-
-    true_data = [
-        [density_mean_true_car, density_mean_true_Pedestrian, density_mean_true_Cyclist],
-        [density_median_true_car, density_median_true_Pedestrian, density_median_true_Cyclist],
-        [density_variance_true_car, density_variance_true_Pedestrian, density_variance_true_Cyclist]
-    ]
-
-    predicted_data = [
-        [density_mean_predicted_car, density_mean_predicted_Pedestrian, density_mean_predicted_Cyclist],
-        [density_median_predicted_car, density_median_predicted_Pedestrian, density_median_predicted_Cyclist],
-        [density_variance_predicted_car, density_variance_predicted_Pedestrian, density_variance_predicted_Cyclist]
-    ]
-
-    # Plotting
-    for i, metric in enumerate(true_data):
-        for j, cls in enumerate(metric):
-            index = np.arange(n_groups)
-            bar_width = 0.35
-
-            axs[i, j].bar(index, cls, bar_width, label='True')
-            axs[i, j].bar(index + bar_width, predicted_data[i][j], bar_width, label='Predicted')
-
-            axs[i, j].set_title(f'{titles[i]} for {classes[j]}')
-            axs[i, j].set_xticks(index + bar_width / 2)
-            axs[i, j].set_xticklabels([str(x) for x in range(1, n_groups + 1)])
-            axs[i, j].legend()
-
-    # Adjust layout
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.savefig('plot_selected.png', dpi=300)
-    # Show plot
-    plt.show()
-
-    n_groups = len(true_entropy)
-
-    # Create figure and axis
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Set the positions and width for the bars
-    index = np.arange(n_groups)
-    bar_width = 0.35
-
-    # Plotting the true and predicted entropy
-    ax.bar(index, true_entropy, bar_width, label='True Entropy')
-    ax.bar(index + bar_width, predected_entropy, bar_width, label='Predicted Entropy')
-
-    # Adding labels, title, and custom x-axis tick labels, etc.
-    ax.set_xlabel('Sample')
-    ax.set_ylabel('Entropy')
-    ax.set_title('Comparison of True and Predicted Entropy')
-    ax.set_xticks(index + bar_width / 2)
-    ax.set_xticklabels([str(x) for x in range(1, n_groups + 1)])
-    ax.legend()
-
-    # Show plot
-    plt.tight_layout()
-    plt.savefig('plot_2_selected.png', dpi=300)
-    plt.show()
+    # density_mean_true_car = []
+    # density_median_true_car = []
+    # density_variance_true_car = []
+    # density_mean_true_Pedestrian = []
+    # density_median_true_Pedestrian = []
+    # density_variance_true_Pedestrian = []
+    # density_mean_true_Cyclist = []
+    # density_median_true_Cyclist = []
+    # density_variance_true_Cyclist = []
+    #
+    # density_mean_predicted_car = []
+    # density_median_predicted_car = []
+    # density_variance_predicted_car = []
+    # density_mean_predicted_Pedestrian = []
+    # density_median_predicted_Pedestrian = []
+    # density_variance_predicted_Pedestrian = []
+    # density_mean_predicted_Cyclist = []
+    # density_median_predicted_Cyclist = []
+    # density_variance_predicted_Cyclist = []
+    #
+    # predected_entropy = []
+    # true_entropy = []
+    # for element in overall_data:
+    #     density_mean_true_car.append(element[0][0])
+    #     density_median_true_car.append(element[1][0])
+    #     density_variance_true_car.append(element[2][0])
+    #     density_mean_true_Pedestrian.append(element[0][1])
+    #     density_median_true_Pedestrian.append(element[1][1])
+    #     density_variance_true_Pedestrian.append(element[2][1])
+    #     density_mean_true_Cyclist.append(element[0][2])
+    #     density_median_true_Cyclist.append(element[1][2])
+    #     density_variance_true_Cyclist.append(element[2][2])
+    #
+    #     density_mean_predicted_car.append(element[3][0])
+    #     density_median_predicted_car.append(element[4][0])
+    #     density_variance_predicted_car.append(element[5][0])
+    #     density_mean_predicted_Pedestrian.append(element[3][1])
+    #     density_median_predicted_Pedestrian.append(element[4][1])
+    #     density_variance_predicted_Pedestrian.append(element[5][1])
+    #     density_mean_predicted_Cyclist.append(element[3][2])
+    #     density_median_predicted_Cyclist.append(element[4][2])
+    #     density_variance_predicted_Cyclist.append(element[5][2])
+    #
+    #     predected_entropy.append(element[6])
+    #     true_entropy.append(element[7])
+    #
+    # n_groups = len(density_mean_true_car)
+    #
+    # # Create subplots
+    # fig, axs = plt.subplots(3, 3, figsize=(15, 10))  # 3x3 grid for mean, median, variance of each class
+    # fig.suptitle('Comparison of True and Predicted Densities')
+    #
+    # # Titles for each subplot
+    # titles = ['Mean Density', 'Median Density', 'Variance of Density']
+    # classes = ['Car', 'Pedestrian', 'Cyclist']
+    #
+    # true_data = [
+    #     [density_mean_true_car, density_mean_true_Pedestrian, density_mean_true_Cyclist],
+    #     [density_median_true_car, density_median_true_Pedestrian, density_median_true_Cyclist],
+    #     [density_variance_true_car, density_variance_true_Pedestrian, density_variance_true_Cyclist]
+    # ]
+    #
+    # predicted_data = [
+    #     [density_mean_predicted_car, density_mean_predicted_Pedestrian, density_mean_predicted_Cyclist],
+    #     [density_median_predicted_car, density_median_predicted_Pedestrian, density_median_predicted_Cyclist],
+    #     [density_variance_predicted_car, density_variance_predicted_Pedestrian, density_variance_predicted_Cyclist]
+    # ]
+    #
+    # # Plotting
+    # for i, metric in enumerate(true_data):
+    #     for j, cls in enumerate(metric):
+    #         index = np.arange(n_groups)
+    #         bar_width = 0.35
+    #
+    #         axs[i, j].bar(index, cls, bar_width, label='True')
+    #         axs[i, j].bar(index + bar_width, predicted_data[i][j], bar_width, label='Predicted')
+    #
+    #         axs[i, j].set_title(f'{titles[i]} for {classes[j]}')
+    #         axs[i, j].set_xticks(index + bar_width / 2)
+    #         axs[i, j].set_xticklabels([str(x) for x in range(1, n_groups + 1)])
+    #         axs[i, j].legend()
+    #
+    # # Adjust layout
+    # plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    # plt.savefig('plot_selected.png', dpi=300)
+    # # Show plot
+    # plt.show()
+    #
+    # n_groups = len(true_entropy)
+    #
+    # # Create figure and axis
+    # fig, ax = plt.subplots(figsize=(10, 6))
+    #
+    # # Set the positions and width for the bars
+    # index = np.arange(n_groups)
+    # bar_width = 0.35
+    #
+    # # Plotting the true and predicted entropy
+    # ax.bar(index, true_entropy, bar_width, label='True Entropy')
+    # ax.bar(index + bar_width, predected_entropy, bar_width, label='Predicted Entropy')
+    #
+    # # Adding labels, title, and custom x-axis tick labels, etc.
+    # ax.set_xlabel('Sample')
+    # ax.set_ylabel('Entropy')
+    # ax.set_title('Comparison of True and Predicted Entropy')
+    # ax.set_xticks(index + bar_width / 2)
+    # ax.set_xticklabels([str(x) for x in range(1, n_groups + 1)])
+    # ax.legend()
+    #
+    # # Show plot
+    # plt.tight_layout()
+    # plt.savefig('plot_2_selected.png', dpi=300)
+    # plt.show()
 
 if __name__ == '__main__':
     main()

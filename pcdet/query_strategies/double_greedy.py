@@ -20,6 +20,18 @@ import os
 import pickle
 from scipy.stats import gaussian_kde
 
+
+def read_pkl_file(file_path_info):
+    try:
+        # Open the file in binary read mode
+        with open(file_path_info, 'rb') as file:
+            # Use pickle to load the file's contents
+            data = pickle.load(file)
+            return data
+    except Exception as e:
+        print(f"Error reading the .pkl file: {e}")
+        return None
+
 class Double_greedy(Strategy):
     def __init__(self, model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg):
 
@@ -153,7 +165,7 @@ class Double_greedy(Strategy):
         total_num_cyclist = torch.zeros(1).to('cuda:0')
         selected_frames = []
         index_of_greedy = 0
-        while total_num_cyclist <= 700 - cur_epoch:
+        while total_num_cyclist <= 300:
                 if index_of_greedy == 0:  # initially, we randomly select a frame.
 
                     for key, value in true_label.items():
@@ -188,13 +200,14 @@ class Double_greedy(Strategy):
                     selected_frames.append(best_frame)
                     index_of_greedy += 1
 
-
+        selected_frames = read_pkl_file('/home/012/r/rx/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_double_greedy/select-100/active_label/selected_greedy_frame_epoch_40_rank_0.pkl')
 
         print('successfully saved selected_all_info for epoch {} for rank {}'.format(cur_epoch, self.rank))
 
-        with open(os.path.join(self.active_label_dir,
-                               'selected_greedy_frame_epoch_{}_rank_{}.pkl'.format(cur_epoch, self.rank)), 'wb') as f:
-            pickle.dump(selected_frames, f)
+        # with open(os.path.join(self.active_label_dir,
+        #                        'selected_greedy_frame_epoch_{}_rank_{}.pkl'.format(cur_epoch, self.rank)), 'wb') as f:
+        #     pickle.dump(selected_frames, f)
+
 
 
         '''
@@ -211,7 +224,7 @@ class Double_greedy(Strategy):
         for i in range(num_class):
             x_min = min(true_density[i])
             x_max = max(true_density[i])
-            x_eval.append(np.linspace(x_min, x_max, 3000) ) # or 2000, based on need and computational feasibility
+            x_eval.append(np.linspace(x_min, x_max, 1000) ) # or 2000, based on need and computational feasibility
         uniform_dist_per_cls = []
         for j in range(num_class):
             kde = gaussian_kde(true_density[j])
@@ -302,3 +315,102 @@ class Double_greedy(Strategy):
         self.model.eval()
         # returned the index of acquired bounding boxes
         return selected_frames
+
+        # sampled_density_list = [density_list[i] for i in selected_frames]
+        # sampled_label_list = [label_list[i] for i in selected_frames]
+        #
+        # """ Build the uniform distribution for each class """
+        # start_time = time.time()
+        # global_density_max = []
+        # global_density_high = []
+        # global_density_low = []
+        # for i in range(num_class):
+        #     true_density[i].sort()
+        # for i in range(num_class):
+        #     global_density_max.append(int(max(true_density[i])))
+        #     global_density_high.append(int(true_density[i][int(self.alpha * len(true_density[i]))]))
+        #     global_density_low.append(int(true_density[i][-int(self.alpha * len(true_density[i]))]))
+        #
+        # x_axis = [np.linspace(-50, int(global_density_max[i]) + 50, 400) for i in range(num_class)]
+        # uniform_dist_per_cls = [uniform.pdf(x_axis[i], global_density_low[i], global_density_high[i] - global_density_low[i]) for i in range(num_class)]
+        #
+        # print("--- Build the uniform distribution running time: %s seconds ---" % (time.time() - start_time))
+        #
+        # density_list, label_list, frame_id_list = sampled_density_list, sampled_label_list, selected_frames
+        #
+        # selected_frames: List[str] = []
+        # selected_box_densities: torch.tensor = torch.tensor([]).cuda()
+        # selected_box_labels: torch.tensor = torch.tensor([]).cuda()
+        #
+        # # looping over N_r samples
+        # if self.rank == 0:
+        #     pbar = tqdm.tqdm(total=self.cfg.ACTIVE_TRAIN.SELECT_NUMS, leave=leave_pbar,
+        #                      desc='global_density_div_for_epoch_%d' % cur_epoch, dynamic_ncols=True)
+        #
+        # for j in range(self.cfg.ACTIVE_TRAIN.SELECT_NUMS):
+        #     if j == 0:  # initially, we randomly select a frame.
+        #
+        #         selected_frames.append(frame_id_list[j])
+        #         selected_box_densities = torch.cat((selected_box_densities, density_list[j]))
+        #         selected_box_labels = torch.cat((selected_box_labels, label_list[j]))
+        #
+        #         # remove selected frame
+        #         del density_list[0]
+        #         del label_list[0]
+        #         del frame_id_list[0]
+        #
+        #     else:  # go through all the samples and choose the frame that can most reduce the KL divergence
+        #         best_frame_id = None
+        #         best_frame_index = None
+        #         best_inverse_coff = -1
+        #
+        #         for i in range(len(density_list)):
+        #             unique_proportions = np.zeros(num_class)
+        #             KL_scores_per_cls = np.zeros(num_class)
+        #
+        #             for cls in range(num_class):
+        #                 if (label_list[i] == cls + 1).sum() == 0:
+        #                     unique_proportions[cls] = 1
+        #                     KL_scores_per_cls[cls] = np.inf
+        #                 else:
+        #                     # get existing selected box densities
+        #                     selected_box_densities_cls = selected_box_densities[selected_box_labels == (cls + 1)]
+        #                     # append new frame's box densities to existing one
+        #                     selected_box_densities_cls = torch.cat((selected_box_densities_cls,
+        #                                                             density_list[i][label_list[i] == (cls + 1)]))
+        #                     # initialize kde
+        #                     kde = KernelDensity(kernel='gaussian', bandwidth=self.bandwidth).fit(
+        #                         selected_box_densities_cls.cpu().numpy()[:, None])
+        #
+        #                     logprob = kde.score_samples(x_axis[cls][:, None])
+        #                     KL_score_per_cls = scipy.stats.entropy(uniform_dist_per_cls[cls], np.exp(logprob))
+        #                     KL_scores_per_cls[cls] = KL_score_per_cls
+        #                     # ranging from 0 to 1 this thing is measure how different the current distribution is from the unifrom one
+        #                     unique_proportions[cls] = 2 / np.pi * np.arctan(np.pi / 2 * KL_score_per_cls)
+        #
+        #             inverse_coff = np.mean(1 - unique_proportions)
+        #             # KL_save_list.append(inverse_coff)
+        #             if inverse_coff > best_inverse_coff:
+        #                 best_inverse_coff = inverse_coff
+        #                 best_frame_index = i
+        #                 best_frame_id = frame_id_list[i]
+        #
+        #         # remove selected frame
+        #         selected_box_densities = torch.cat((selected_box_densities, density_list[best_frame_index]))
+        #         selected_box_labels = torch.cat((selected_box_labels, label_list[best_frame_index]))
+        #         del density_list[best_frame_index]
+        #         del label_list[best_frame_index]
+        #         del frame_id_list[best_frame_index]
+        #
+        #         selected_frames.append(best_frame_id)
+        #
+        #     if self.rank == 0:
+        #         pbar.update()
+        #         # pbar.set_postfix(disp_dict)
+        #         pbar.refresh()
+        # if self.rank == 0:
+        #     pbar.close()
+        #
+        # self.model.eval()
+        # # returned the index of acquired bounding boxes
+        # return selected_frames

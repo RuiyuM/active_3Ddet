@@ -243,7 +243,7 @@ class Detector3DTemplate(nn.Module):
             mean_points = {}
             median_points = {}
             variance_points = {}
-
+            ground_truth_points = {}
 
             gt_box = batch_dict['gt_boxes'][batch_mask][:, :-1]
             for cls_idx in range(len(bbox_classes)):
@@ -255,12 +255,14 @@ class Detector3DTemplate(nn.Module):
                     gt_cls_box = gt_box[cls_mask].reshape(1, -1, 7)
                     box_idxs_of_pts = roiaware_pool3d_utils.points_in_boxes_gpu(sampled_points, gt_cls_box).long().squeeze(dim=0)
                     unique_pts_counts = torch.tensor([(box_idxs_of_pts==i).sum() for i in torch.unique(box_idxs_of_pts)])[1:].float() # skip the -1
-                   
+
+                    ground_truth_points[bbox_classes[cls_idx]] = unique_pts_counts
                     mean_points[bbox_classes[cls_idx]] = 0 if torch.isnan(torch.mean(unique_pts_counts)) else torch.mean(unique_pts_counts)
                     median_points[bbox_classes[cls_idx]] = 0 if torch.isnan(torch.median(unique_pts_counts)) else torch.median(unique_pts_counts)
                     variance_points[bbox_classes[cls_idx]] = 0 if torch.isnan(torch.var(unique_pts_counts, unbiased=False)) else torch.var(unique_pts_counts, unbiased=False) 
                     
                 else:
+                    ground_truth_points[bbox_classes[cls_idx]] = 0
                     num_bbox[bbox_classes[cls_idx]] = 0
                     mean_points[bbox_classes[cls_idx]] = 0
                     median_points[bbox_classes[cls_idx]] = 0
@@ -393,6 +395,7 @@ class Detector3DTemplate(nn.Module):
                 'confidence': cls_preds,
                 'rpn_preds': batch_dict['rpn_preds'],
                 'num_bbox': num_bbox,
+                'gt_points': ground_truth_points,
                 'mean_points': mean_points,
                 'median_points': median_points,
                 'variance_points': variance_points,

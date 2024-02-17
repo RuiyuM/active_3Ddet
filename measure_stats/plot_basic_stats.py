@@ -102,8 +102,16 @@ def collect_info(data):
     total_num_car = torch.zeros(1).to('cuda:0')
     total_num_cyclist = torch.zeros(1).to('cuda:0')
     total_num_pedestrain = torch.zeros(1).to('cuda:0')
+
+    total_num_car_select = torch.zeros(1).to('cuda:0')
+    total_num_cyclist_select = torch.zeros(1).to('cuda:0')
+    total_num_pedestrain_select = torch.zeros(1).to('cuda:0')
+    selected_frame = []
+
     for element in data:
         for infomation in element:
+
+
 
             total_num_car += infomation['num_bbox']['Car']
             total_num_pedestrain += infomation['num_bbox']['Pedestrian']
