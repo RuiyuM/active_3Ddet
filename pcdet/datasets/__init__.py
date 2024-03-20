@@ -164,16 +164,34 @@ def build_active_dataloader(dataset_cfg, class_names, batch_size, dist, root_pat
     else:
         sampler_labelled, sampler_unlabelled =  None, None
 
-
-    dataloader_labelled = DataLoader(
-        labelled_set, batch_size=batch_size, pin_memory=True, num_workers=workers,
-        shuffle=(sampler_labelled is None) and training, collate_fn=labelled_set.collate_batch,
-        drop_last=False, sampler=sampler_labelled, timeout=0
+    if active_training is not None and unlabelled_set.sample_id_list:
+        dataloader_labelled = DataLoader(
+            labelled_set, batch_size=batch_size, pin_memory=True, num_workers=workers,
+            shuffle=(sampler_labelled is None) and training, collate_fn=labelled_set.collate_batch,
+            drop_last=False, sampler=sampler_labelled, timeout=0
+            )
+        dataloader_unlabelled = DataLoader(
+            unlabelled_set, batch_size=batch_size, pin_memory=True, num_workers=workers,
+            shuffle=(sampler_unlabelled is None) and training, collate_fn=unlabelled_set.collate_batch,
+            drop_last=False, sampler=sampler_unlabelled, timeout=0
+            )
+    elif active_training is not None and not unlabelled_set.sample_id_list:
+        dataloader_labelled = DataLoader(
+            labelled_set, batch_size=batch_size, pin_memory=True, num_workers=workers,
+            shuffle=(sampler_labelled is None) and training, collate_fn=labelled_set.collate_batch,
+            drop_last=False, sampler=sampler_labelled, timeout=0
         )
-    dataloader_unlabelled = DataLoader(
-        unlabelled_set, batch_size=batch_size, pin_memory=True, num_workers=workers,
-        shuffle=(sampler_unlabelled is None) and training, collate_fn=unlabelled_set.collate_batch,
-        drop_last=False, sampler=sampler_unlabelled, timeout=0
+        dataloader_unlabelled = None
+    else:
+        dataloader_labelled = DataLoader(
+            labelled_set, batch_size=batch_size, pin_memory=True, num_workers=workers,
+            shuffle=(sampler_labelled is None) and training, collate_fn=labelled_set.collate_batch,
+            drop_last=False, sampler=sampler_labelled, timeout=0
+        )
+        dataloader_unlabelled = DataLoader(
+            unlabelled_set, batch_size=batch_size, pin_memory=True, num_workers=workers,
+            shuffle=(sampler_unlabelled is None) and training, collate_fn=unlabelled_set.collate_batch,
+            drop_last=False, sampler=sampler_unlabelled, timeout=0
         )
 
     del dataset

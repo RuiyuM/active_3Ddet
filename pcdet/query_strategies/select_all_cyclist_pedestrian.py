@@ -39,7 +39,7 @@ class Select_all_cyclist_pedestrian(Strategy):
         # coefficients controls the ratio of selected subset
         self.k1 = getattr(cfg.ACTIVE_TRAIN.ACTIVE_CONFIG, 'K1', 5)
         self.k2 = getattr(cfg.ACTIVE_TRAIN.ACTIVE_CONFIG, 'K2', 3)
-
+        
         # bandwidth for the KDE in the GPDB module
         self.bandwidth = getattr(cfg.ACTIVE_TRAIN.ACTIVE_CONFIG, 'BANDWDITH', 5)
         # ablation study for prototype selection
@@ -125,10 +125,17 @@ class Select_all_cyclist_pedestrian(Strategy):
                 pbar.refresh()
         if self.rank == 0:
             pbar.close()
-        path = "/home/012/r/rx/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_select_all_cyclist_pedestrian/select-100/active_label/selected_all_info_epoch_40_rank_0.pkl"
+        path = "/people/cs/r/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/measure_stats/leaset_car.pkl"
         data = read_pkl_file(path)
+        str_data = [f"{num:06}" for num in data]
+        start_index = ((cur_epoch // 40) - 1) * 100
 
+        # Calculate end index for slicing, which is start_index + 196
+        end_index = start_index + 100
+
+        # Perform the slicing
+        selected_frames = str_data[start_index:end_index]
 
         self.model.eval()
         # returned the index of acquired bounding boxes
-        return data
+        return selected_frames

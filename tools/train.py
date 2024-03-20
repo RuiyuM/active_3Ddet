@@ -26,7 +26,7 @@ from train_utils.train_active_utils import train_model_active
 
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
 # os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4"
-os.environ["CUDA_VISIBLE_DEVICES"]=" 2, 3,4"
+os.environ["CUDA_VISIBLE_DEVICES"]="0,3,4"
 os.environ["CUDA_LAUNCH_BLOCKING"]="1"
 # torch.cuda.set_device(0,1,2)
 

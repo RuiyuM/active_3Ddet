@@ -242,10 +242,11 @@ def collect_info(data):
     return [density_mean_true, density_median_true, density_variance_true, density_mean_pred, density_median_pred,density_variance_pred, mean_pred_entropy_pred, mean_pred_entropy_true]
 # Use the function to read the .pkl file
 def main():
-    base_path = '/home/012/r/rx/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_active_crb_record_static/select-100/active_label/'
+    base_path = "/people/cs/r/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_active_crb_record_static/select-100/active_label/"
     all_template = 'selected_all_info_epoch_{}_rank_0.pkl'
     file_template = 'selected_frames_epoch_{}_rank_0.pkl'
 
+    all_cycylist_pedetrian_path = '/people/cs/r/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_active_crb_stage_2_stage_1/select-100/active_label/selected_frames_epoch_40_rank_0.pkl'
     # Initialize a dictionary to hold the data from each epoch
 
 
@@ -253,17 +254,17 @@ def main():
       # Start at 40, end at 240, step by 40
     overall_data = []
     for i in range(1, 7):
-        file_path = base_path + file_template.format(i * 40)
-        all_file_path = base_path + all_template.format(1 * 40)
+        # file_path = base_path + file_template.format(240)
+        all_file_path = base_path + all_template.format(40)
         all_data = read_pkl_file(all_file_path)
-        data = read_pkl_file(file_path)
+        data = read_pkl_file(all_cycylist_pedetrian_path)
 
-        # # new_data = collect_info(data)
-        # current_all_info = []
-        #
-        # for j in range(len(data['frame_id'])):
-        #     current_all_info.append(all_data[int(data['frame_id'][j])])
+        # new_data = collect_info(data)
+        current_all_info = []
 
+        for j in range(len(data['frame_id'])):
+            current_all_info.append(all_data[int(data['frame_id'][j])])
+        del all_data
         extracted = collect_info_individual(current_all_info)
         overall_data.append(extracted)
 

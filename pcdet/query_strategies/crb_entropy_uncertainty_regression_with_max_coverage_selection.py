@@ -17,12 +17,13 @@ from scipy.cluster.vq import vq
 from typing import Dict, List
 import os
 import pickle
+from apricot import MaxCoverageSelection
 
 
-class Uncertainty_Regression_as_less_car(Strategy):
+class Uncertainty_Regression_CRBSampling_with_Max_coverage(Strategy):
     def __init__(self, model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg):
 
-        super(Uncertainty_Regression_as_less_car, self).__init__(model, labelled_loader, unlabelled_loader, rank,
+        super(Uncertainty_Regression_CRBSampling_with_Max_coverage, self).__init__(model, labelled_loader, unlabelled_loader, rank,
                                                          active_label_dir, cfg)
 
         # coefficients controls the ratio of selected subset
@@ -67,6 +68,7 @@ class Uncertainty_Regression_as_less_car(Strategy):
         label_list = {}
 
         # experiment:
+        point_features = {}
 
         '''
         -------------  Stage 1: Consise Label Sampling ----------------------
@@ -80,35 +82,34 @@ class Uncertainty_Regression_as_less_car(Strategy):
             with torch.no_grad():
                 load_data_to_gpu(unlabelled_batch)
                 pred_dicts, _ = self.model(unlabelled_batch)
-
                 for batch_inx in range(len(pred_dicts)):
                     # save the meta information and project it to the wandb dashboard
                     self.save_points(unlabelled_batch['frame_id'][batch_inx], pred_dicts[batch_inx])
 
                     value, counts = torch.unique(pred_dicts[batch_inx]['pred_labels'], return_counts=True)
-                    if (value == 2).any() or (value == 3).any():
-                        if len(value) == 0:
-                            entropy = 0
-                        else:
-                            # calculates the shannon entropy of the predicted labels of bounding boxes
-                            unique_proportions = torch.ones(num_class).cuda()
-                            unique_proportions[value - 1] = counts.float()
-                            cls_weight = self.adding_weight_to_unique_proportions(pred_dicts, batch_inx)
-                            reg_weight = self.adding_weight_regression(pred_dicts, batch_inx)
-                            unique_proportions = (unique_proportions / sum(counts) * cls_weight * reg_weight)
-                            entropy = Categorical(probs=unique_proportions).entropy()
-                            check_value.append(entropy)
+                    if len(value) == 0:
+                        entropy = 0
+                    else:
+                        # calculates the shannon entropy of the predicted labels of bounding boxes
+                        unique_proportions = torch.ones(num_class).cuda()
+                        unique_proportions[value - 1] = counts.float()
+                        entropy = Categorical(probs=unique_proportions / sum(counts)).entropy()
+                        check_value.append(entropy)
 
-                        # save the hypothetical labels for the regression heads at Stage 2
-                        cls_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_cls']
-                        reg_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_reg']
-                        # used for sorting
-                        select_dic[unlabelled_batch['frame_id'][batch_inx]] = entropy
-                        # save the density records for the Stage 3
-                        density_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx][
-                            'pred_box_unique_density']
-                        label_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['pred_labels']
+                    # save the hypothetical labels for the regression heads at Stage 2
+                    cls_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_cls']
+                    reg_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_reg']
+                    # used for sorting
+                    select_dic[unlabelled_batch['frame_id'][batch_inx]] = entropy
+                    # save the density records for the Stage 3
+                    density_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx][
+                        'pred_box_unique_density']
+                    label_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['pred_labels']
 
+                    start_index = batch_inx * 2048
+                    end_index = (batch_inx + 1) * 2048
+                    point_features[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['point_features'][
+                                                                              start_index:end_index, :]
             if self.rank == 0:
                 pbar.update()
                 # pbar.set_postfix(disp_dict)
@@ -123,16 +124,32 @@ class Uncertainty_Regression_as_less_car(Strategy):
                                                                             title='value_dist_epoch_{}'.format(
                                                                                 cur_epoch))})
 
+        # use the key point's features to do a facility location selection with 500 frames
+        all_features = np.array([value.cpu().numpy() for value in point_features.values()])
+        N, M, K = all_features.shape
+        all_features = all_features.reshape(N, -1)
+        # all_features = csr_matrix(all_features)
+        selector = MaxCoverageSelection(n_samples=500)
+
+        # Fit the selector to your data
+        selector.fit(all_features)
+
+        # Transform the data (optional here since you're more likely interested in the indices of the selected samples)
+        selected_indices = selector.ranking
+
+        # Retrieve the frame IDs using the selected indices
+        frame_ids = list(
+            point_features.keys())  # Assuming the order of keys in the dictionary matches the rows in all_features
+        selected_frame_ids = [frame_ids[i] for i in selected_indices]
+        ###############################
+        new_select_dic = {}
+        for element in selected_frame_ids:
+            new_select_dic[element] = select_dic[element]
+
         # sort and get selected_frames
-        select_dic = dict(sorted(select_dic.items(), key=lambda item: item[1]))
+        new_select_dic = dict(sorted(new_select_dic.items(), key=lambda item: item[1]))
         # narrow down the scope
-        if len(select_dic) > int(self.cfg.ACTIVE_TRAIN.SELECT_NUMS * 5):
-
-            selected_frames = list(select_dic.keys())[::-1][:int(self.cfg.ACTIVE_TRAIN.SELECT_NUMS * 5)]
-        else:
-            selected_frames = list(select_dic.keys())[::-1][:int(len(select_dic))]
-
-        selected_frames = self.sorting_out_excessive_car_samples(selected_frames, label_list)
+        selected_frames = list(new_select_dic.keys())[::-1][:int(self.cfg.ACTIVE_TRAIN.SELECT_NUMS)]
 
         # save to local
         print('successfully saved selected_all_info for epoch {} for rank {}'.format(cur_epoch, self.rank))
@@ -184,23 +201,3 @@ class Uncertainty_Regression_as_less_car(Strategy):
         mean_confidence_box = scores_sum / label_counts
         mean_confidence_box = torch.nan_to_num(mean_confidence_box)
         return mean_confidence_box.to(device)
-
-    def sorting_out_excessive_car_samples(self, selected_frames, label_dictionary):
-        car_number_dict = {}
-        for i in range(len(selected_frames)):
-            predicted_label = label_dictionary[selected_frames[i]]
-            total_num_car_pred = torch.zeros(1).to('cuda:0')
-            total_num_cyclist_pred = torch.zeros(1).to('cuda:0')
-            total_num_pedestrain_pred = torch.zeros(1).to('cuda:0')
-            for i_index in range(len(predicted_label)):
-                if predicted_label[i_index] == 1:
-                    total_num_car_pred += 1
-                elif predicted_label[i_index] == 2:
-                    total_num_pedestrain_pred += 1
-                elif predicted_label[i_index] == 3:
-                    total_num_cyclist_pred += 1
-            car_number_dict[selected_frames[i]] = [total_num_car_pred, total_num_pedestrain_pred, total_num_cyclist_pred]
-
-        sorted_frames = sorted(car_number_dict, key=lambda x: car_number_dict[x][0])
-
-        return sorted_frames[:100]

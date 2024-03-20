@@ -90,25 +90,88 @@ def plot_true_predicted_entropy(true_entropy, pred_entropy):
     plt.savefig('plot.png', dpi=300)
     plt.show()
 
+# def collect_info_individual(infomation, true_entropy, pred_entropy, density_mean_true,
+# density_median_true, density_variance_true, density_mean_pred, density_median_pred, density_variance_pred
+#                             ):
+def collect_info_individual(element):
+    true_entropy = []
+    pred_entropy = []
+    density_mean_true = []
+    density_median_true = []
+    density_variance_true = []
+    density_mean_pred = []
+    density_median_pred = []
+    density_variance_pred = []
+    total_num_car = torch.zeros(1).to('cuda:0')
+    total_num_cyclist = torch.zeros(1).to('cuda:0')
+    total_num_pedestrain = torch.zeros(1).to('cuda:0')
 
-def select_pedestrian_cyclist_without_car(data):
-    car_number_dict = {}
+    total_num_car_pred = torch.zeros(1).to('cuda:0')
+    total_num_cyclist_pred = torch.zeros(1).to('cuda:0')
+    total_num_pedestrain_pred = torch.zeros(1).to('cuda:0')
 
-    for key, infomation in data.items():
-        total_num_car = torch.zeros(1).to('cuda:0')
-        total_num_cyclist = torch.zeros(1).to('cuda:0')
-        total_num_pedestrain = torch.zeros(1).to('cuda:0')
+    for infomation in element:
+        for i_index in range(len(infomation['pred_labels'])):
+            if infomation['pred_labels'][i_index] == 1:
+                total_num_car_pred += 1
+            elif infomation['pred_labels'][i_index] == 2:
+                total_num_pedestrain_pred += 1
+            elif infomation['pred_labels'][i_index] == 3:
+                total_num_cyclist_pred += 1
+
         total_num_car += infomation['num_bbox']['Car']
         total_num_pedestrain += infomation['num_bbox']['Pedestrian']
         total_num_cyclist += infomation['num_bbox']['Cyclist']
-        if total_num_cyclist > 0 or total_num_pedestrain > 0:
-            if total_num_car != 0:
+        # prediceted_entropy
+        value, counts = torch.unique(infomation['pred_labels'], return_counts=True)
+        if len(value) == 0:
+            entropy = 0
+            pred_entropy.append(entropy)
+        else:
+            # calculates the shannon entropy of the predicted labels of bounding boxes
+            unique_proportions = torch.ones(3).cuda()
+            unique_proportions[value - 1] = counts.float()
+            entropy = Categorical(probs=unique_proportions / sum(counts)).entropy()
+            pred_entropy.append(entropy)
+        # true_entropy
+        counts = torch.zeros(1).cuda()
+        unique_proportions = torch.ones(3).cuda()
+        car = infomation['num_bbox']['Car']
+        Pedestrain = infomation['num_bbox']['Pedestrian']
+        Cyclist = infomation['num_bbox']['Cyclist']
+        counts += car + Pedestrain + Cyclist
+        if car != 0:
+            unique_proportions[0] = car
+        if Pedestrain != 0:
+            unique_proportions[1] = Pedestrain
+        if Cyclist != 0:
+            unique_proportions[2] = Cyclist
+        entropy = Categorical(probs=unique_proportions / sum(counts)).entropy()
+        true_entropy.append(entropy)
+        density_mean_true.append([infomation['mean_points']['Car'], infomation['mean_points']['Pedestrian'], infomation['mean_points']['Cyclist']])
+        density_median_true.append([infomation['median_points']['Car'], infomation['median_points']['Pedestrian'], infomation['median_points']['Cyclist']])
+        density_variance_true.append([infomation['variance_points']['Car'], infomation['variance_points']['Pedestrian'], infomation['variance_points']['Cyclist']])
+        pred_stat = calcuate_mean_median_variance(infomation)
+        density_mean_pred.append(pred_stat[0])
+        density_median_pred.append(pred_stat[1])
+        density_variance_pred.append(pred_stat[2])
 
-                car_number_dict[key] = total_num_car
+    print("Actual counts:")
+    print(f"Total number of cars: {total_num_car.cpu().item()}")
+    print(f"Total number of cyclists: {total_num_cyclist.cpu().item()}")
+    print(f"Total number of pedestrians: {total_num_pedestrain.cpu().item()}")
 
-    sorted_car_number_dict = dict(sorted(car_number_dict.items(), key=lambda item: item[1]))
-    top_600_keys = list(sorted_car_number_dict.keys())[:600]
-    return top_600_keys
+    print("\nPredicted counts:")
+    print(f"Total number of predicted cars: {total_num_car_pred.cpu().item()}")
+    print(f"Total number of predicted cyclists: {total_num_cyclist_pred.cpu().item()}")
+    print(f"Total number of predicted pedestrians: {total_num_pedestrain_pred.cpu().item()}")
+    return [total_num_car.cpu().item(), total_num_pedestrain.cpu().item(), total_num_cyclist.cpu().item(), total_num_car_pred.cpu().item(), total_num_pedestrain_pred.cpu().item(), total_num_cyclist_pred.cpu().item()]
+
+def calculate_difference_score(car, pedestrian, cyclist):
+    total_num = car + pedestrian + cyclist
+    difference_score = abs(car/total_num - pedestrian/total_num) + abs(car/total_num - cyclist/total_num) + abs(pedestrian/total_num - cyclist/total_num)
+
+    return difference_score
 
 def collect_info(data):
     true_entropy = []
@@ -122,20 +185,12 @@ def collect_info(data):
     total_num_car = torch.zeros(1).to('cuda:0')
     total_num_cyclist = torch.zeros(1).to('cuda:0')
     total_num_pedestrain = torch.zeros(1).to('cuda:0')
-
-    total_num_car_select = torch.zeros(1).to('cuda:0')
-    total_num_cyclist_select = torch.zeros(1).to('cuda:0')
-    total_num_pedestrain_select = torch.zeros(1).to('cuda:0')
-    selected_frame = []
-
     for element in data:
         for infomation in element:
 
-
-
             total_num_car += infomation['num_bbox']['Car']
-            total_num_pedestrain += infomation['num_bbox']['Pedestrian']
-            total_num_cyclist += infomation['num_bbox']['Cyclist']
+            total_num_cyclist += infomation['num_bbox']['Pedestrian']
+            total_num_pedestrain += infomation['num_bbox']['Cyclist']
             # prediceted_entropy
             value, counts = torch.unique(infomation['pred_labels'], return_counts=True)
             if len(value) == 0:
@@ -183,143 +238,68 @@ def collect_info(data):
     return [density_mean_true, density_median_true, density_variance_true, density_mean_pred, density_median_pred,density_variance_pred, mean_pred_entropy_pred, mean_pred_entropy_true]
 # Use the function to read the .pkl file
 def main():
-    base_path = '/people/cs/r/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_active_crb_record_static/select-100/active_label/'
-    file_template = 'selected_all_info_epoch_{}_rank_0.pkl'
+    base_path = "/people/cs/r/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_active_crb_record_static/select-100/active_label/"
+    all_template = 'selected_all_info_epoch_{}_rank_0.pkl'
+    file_template = 'selected_frames_epoch_{}_rank_0.pkl'
+
+    all_cycylist_pedetrian_path = '/people/cs/r/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_active_crb_stage_2_stage_1_with_confidence_refinment/select-100/active_label/'
 
     # Initialize a dictionary to hold the data from each epoch
+    path_elements = all_cycylist_pedetrian_path.split('/')
+    save_file_name = path_elements[10]
     # Loop through the epochs 40, 80, 120, ..., 240
       # Start at 40, end at 240, step by 40
-    file_path = "/people/cs/r/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/output/active-kitti_models/pv_rcnn_active_crb_record_static/select-100/active_label/selected_all_info_epoch_40_rank_0.pkl"
-    data = read_pkl_file(file_path)
-    new_data = select_pedestrian_cyclist_without_car(data)
-    with open("leaset_car.pkl", "wb") as file:
-        pickle.dump(new_data, file)
-
-
-
-
-    base_path = '/home/012/r/rx/rxm210041/Desktop/test_3d_active/CRB-active-3Ddet/measure_stats/'
-    file_template = '{}_statistics.pkl'
-    overall_data = []
+    total_num_car = 0
+    total_num_pedestrain = 0
+    total_num_cyclist = 0
+    total_num_car_pred = 0
+    total_num_pedestrain_pred = 0
+    total_num_cyclist_pred = 0
+    true_ratio = []
+    predicted_ratio = []
+    total_true_ratio = 0
+    total_predicted_ratio = 0
+    all_file_path = base_path + all_template.format(40)
+    all_data = read_pkl_file(all_file_path)
     for i in range(1, 7):
+        # file_path = base_path + file_template.format(240)
 
-        file_path = base_path + file_template.format(i * 40)
-        data = read_pkl_file(file_path)
-        overall_data.append(data)
-    print(overall_data)
-    density_mean_true_car = []
-    density_median_true_car = []
-    density_variance_true_car = []
-    density_mean_true_Pedestrian = []
-    density_median_true_Pedestrian = []
-    density_variance_true_Pedestrian = []
-    density_mean_true_Cyclist = []
-    density_median_true_Cyclist = []
-    density_variance_true_Cyclist = []
 
-    density_mean_predicted_car = []
-    density_median_predicted_car = []
-    density_variance_predicted_car = []
-    density_mean_predicted_Pedestrian = []
-    density_median_predicted_Pedestrian = []
-    density_variance_predicted_Pedestrian = []
-    density_mean_predicted_Cyclist = []
-    density_median_predicted_Cyclist = []
-    density_variance_predicted_Cyclist = []
+        data = read_pkl_file(all_cycylist_pedetrian_path + file_template.format(i * 40))
 
-    predected_entropy = []
-    true_entropy = []
-    for element in overall_data:
-        density_mean_true_car.append(element[0][0])
-        density_median_true_car.append(element[1][0])
-        density_variance_true_car.append(element[2][0])
-        density_mean_true_Pedestrian.append(element[0][1])
-        density_median_true_Pedestrian.append(element[1][1])
-        density_variance_true_Pedestrian.append(element[2][1])
-        density_mean_true_Cyclist.append(element[0][2])
-        density_median_true_Cyclist.append(element[1][2])
-        density_variance_true_Cyclist.append(element[2][2])
+        # new_data = collect_info(data)
+        current_all_info = []
 
-        density_mean_predicted_car.append(element[3][0])
-        density_median_predicted_car.append(element[4][0])
-        density_variance_predicted_car.append(element[5][0])
-        density_mean_predicted_Pedestrian.append(element[3][1])
-        density_median_predicted_Pedestrian.append(element[4][1])
-        density_variance_predicted_Pedestrian.append(element[5][1])
-        density_mean_predicted_Cyclist.append(element[3][2])
-        density_median_predicted_Cyclist.append(element[4][2])
-        density_variance_predicted_Cyclist.append(element[5][2])
+        for j in range(len(data['frame_id'])):
+            current_all_info.append(all_data[int(data['frame_id'][j])])
+        # del all_data
+        num_car, num_pedestrain, num_cyclist, car_pred, pedestrain_pred, cyclist_pred = collect_info_individual(current_all_info)
+        total_num_car += num_car
+        total_num_pedestrain += num_pedestrain
+        total_num_cyclist += num_cyclist
 
-        predected_entropy.append(element[6])
-        true_entropy.append(element[7])
+        total_num_car_pred += car_pred
+        total_num_pedestrain_pred += pedestrain_pred
+        total_num_cyclist_pred += cyclist_pred
+        true_ratio.append(calculate_difference_score(num_car, num_pedestrain, num_cyclist))
+        predicted_ratio.append(calculate_difference_score(car_pred, pedestrain_pred, cyclist_pred))
 
-    n_groups = len(density_mean_true_car)
-
-    # Create subplots
-    fig, axs = plt.subplots(3, 3, figsize=(15, 10))  # 3x3 grid for mean, median, variance of each class
-    fig.suptitle('Comparison of True and Predicted Densities')
-
-    # Titles for each subplot
-    titles = ['Mean Density', 'Median Density', 'Variance of Density']
-    classes = ['Car', 'Pedestrian', 'Cyclist']
-
-    true_data = [
-        [density_mean_true_car, density_mean_true_Pedestrian, density_mean_true_Cyclist],
-        [density_median_true_car, density_median_true_Pedestrian, density_median_true_Cyclist],
-        [density_variance_true_car, density_variance_true_Pedestrian, density_variance_true_Cyclist]
-    ]
-
-    predicted_data = [
-        [density_mean_predicted_car, density_mean_predicted_Pedestrian, density_mean_predicted_Cyclist],
-        [density_median_predicted_car, density_median_predicted_Pedestrian, density_median_predicted_Cyclist],
-        [density_variance_predicted_car, density_variance_predicted_Pedestrian, density_variance_predicted_Cyclist]
-    ]
-
-    # Plotting
-    for i, metric in enumerate(true_data):
-        for j, cls in enumerate(metric):
-            index = np.arange(n_groups)
-            bar_width = 0.35
-
-            axs[i, j].bar(index, cls, bar_width, label='True')
-            axs[i, j].bar(index + bar_width, predicted_data[i][j], bar_width, label='Predicted')
-
-            axs[i, j].set_title(f'{titles[i]} for {classes[j]}')
-            axs[i, j].set_xticks(index + bar_width / 2)
-            axs[i, j].set_xticklabels([str(x) for x in range(1, n_groups + 1)])
-            axs[i, j].legend()
-
-    # Adjust layout
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.savefig('plot.png', dpi=300)
-    # Show plot
-    plt.show()
-
-    n_groups = len(true_entropy)
-
-    # Create figure and axis
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Set the positions and width for the bars
-    index = np.arange(n_groups)
-    bar_width = 0.35
-
-    # Plotting the true and predicted entropy
-    ax.bar(index, true_entropy, bar_width, label='True Entropy')
-    ax.bar(index + bar_width, predected_entropy, bar_width, label='Predicted Entropy')
-
-    # Adding labels, title, and custom x-axis tick labels, etc.
-    ax.set_xlabel('Sample')
-    ax.set_ylabel('Entropy')
-    ax.set_title('Comparison of True and Predicted Entropy')
-    ax.set_xticks(index + bar_width / 2)
-    ax.set_xticklabels([str(x) for x in range(1, n_groups + 1)])
-    ax.legend()
-
-    # Show plot
-    plt.tight_layout()
-    plt.savefig('plot_2.png', dpi=300)
-    plt.show()
+    total_true_ratio = calculate_difference_score(total_num_car, total_num_pedestrain, total_num_cyclist)
+    total_predicted_ratio = calculate_difference_score(total_num_car_pred, total_num_pedestrain_pred, total_num_cyclist_pred)
+    statistics_dictionary = {}
+    statistics_dictionary['total_num_car'] = total_num_car
+    statistics_dictionary['total_num_pedestrain'] = total_num_pedestrain
+    statistics_dictionary['total_num_cyclist'] = total_num_cyclist
+    statistics_dictionary['total_num_car_pred'] = total_num_car_pred
+    statistics_dictionary['total_num_pedestrain_pred'] = total_num_pedestrain_pred
+    statistics_dictionary['total_num_cyclist_pred'] = total_num_cyclist_pred
+    statistics_dictionary['true_ratio'] = true_ratio
+    statistics_dictionary['predicted_ratio'] = predicted_ratio
+    statistics_dictionary['total_true_ratio'] = total_true_ratio
+    statistics_dictionary['total_predicted_ratio'] = total_predicted_ratio
+    with open(save_file_name, 'wb') as file:
+        pickle.dump(statistics_dictionary, file)
+    print("finished")
 
 if __name__ == '__main__':
     main()

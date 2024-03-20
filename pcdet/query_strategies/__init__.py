@@ -23,6 +23,22 @@ from .greedy_label_and_not_mean_density_2 import Double_greedy_not_mean_2
 from .greedy_label_and_not_mean_density_5_1_1 import Double_greedy_5_1_1
 from .select_all_cyclist_pedestrian import Select_all_cyclist_pedestrian
 from .pv_rcnn_prediction_confidence_select_as_less_car_as_possible import Uncertainty_Regression_as_less_car
+from .pv_rcnn_use_prediction_only_select_leaset_car_samples import Prediction_leaset_car_samples
+from .pv_rcnn_prediction_set_unifrom_first_point_cloud_uniform import Set_Unifrom_invidual_uniform
+from .pv_rcnn_prediction_set_unifrom_first_point_cloud_uniform_reverse import Set_Unifrom_invidual_uniform_reverse
+from .pv_rcnn_prediction_set_unifrom_first_point_cloud_uniform_with_confidence_score import Set_Unifrom_invidual_uniform_with_confidence
+from .pv_rcnn_prediction_set_unifrom_first_point_cloud_uniform_with_confi_half_score import Set_Unifrom_invidual_uniform_with_half_confidence
+from .uniform_test import Uniform_test
+from .uniform_test_400 import Uniform_test_400
+from .facility_700_unifrom_300 import Facility_location_700_uniform_300
+from .facility_only import Facility_location_only
+from .crb_entropy_uncertainty_regression_with_facility_location import Uncertainty_Regression_CRBSampling_with_facility
+from .crb_sampling_stage_2_and_stage_1 import CRBSampling_stage_2_stage_1
+from .crb_entropy_uncertainty_regression_with_max_coverage_selection import Uncertainty_Regression_CRBSampling_with_Max_coverage
+from .facility_location_stage_2_and_stage_1 import Facility_Location_stage_2_stage_1
+from .max_coverage_stage_2_and_stage_1 import Max_Coverage_stage_2_stage_1
+from .crb_sampling_stage_2_and_stage_1_and_overall_uniformity import CRBSampling_stage_2_stage_1_Uniformity
+
 
 __factory = {
     'random': RandomSampling,
@@ -48,6 +64,21 @@ __factory = {
     'double_greedy_5_1_1': Double_greedy_5_1_1,
     'select_all_cyclist_pedestrian': Select_all_cyclist_pedestrian,
     'Uncertainty_Regression_crb_less_car': Uncertainty_Regression_as_less_car,
+    'prediction_leaset_car_samples': Prediction_leaset_car_samples,
+    'set_unifrom_individual_uniform': Set_Unifrom_invidual_uniform,
+    'Set_Unifrom_invidual_uniform_reverse': Set_Unifrom_invidual_uniform_reverse,
+    'Set_Unifrom_invidual_uniform_with_confidence': Set_Unifrom_invidual_uniform_with_confidence,
+    'Set_Unifrom_invidual_uniform_with_half_confidence': Set_Unifrom_invidual_uniform_with_half_confidence,
+    'uniform_test': Uniform_test,
+    'uniform_test_400': Uniform_test_400,
+    'facility_location_700_unifrom_300': Facility_location_700_uniform_300,
+    'facility_only': Facility_location_only,
+    'Uncertainty_Regression_crb_with_facility_location_first': Uncertainty_Regression_CRBSampling_with_facility,
+    'crb_stage_2_stage_1': CRBSampling_stage_2_stage_1,
+    'Uncertainty_Regression_crb_with_max_coverage': Uncertainty_Regression_CRBSampling_with_Max_coverage,
+    'facility_selection_crb_stage_2_stage_1': Facility_Location_stage_2_stage_1,
+    'max_coverage_crb_stage_2_stage_1': Max_Coverage_stage_2_stage_1,
+    "crb_stage_2_stage_1_and_uniformity": CRBSampling_stage_2_stage_1_Uniformity
 }
 
 def names():

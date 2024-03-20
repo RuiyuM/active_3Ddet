@@ -19,10 +19,10 @@ import os
 import pickle
 
 
-class Uncertainty_Regression_as_less_car(Strategy):
+class Set_Unifrom_invidual_uniform(Strategy):
     def __init__(self, model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg):
 
-        super(Uncertainty_Regression_as_less_car, self).__init__(model, labelled_loader, unlabelled_loader, rank,
+        super(Set_Unifrom_invidual_uniform, self).__init__(model, labelled_loader, unlabelled_loader, rank,
                                                          active_label_dir, cfg)
 
         # coefficients controls the ratio of selected subset
@@ -60,12 +60,12 @@ class Uncertainty_Regression_as_less_car(Strategy):
         self.model.eval()
         self.enable_dropout(self.model)
         num_class = len(self.labelled_loader.dataset.class_names)
-        check_value = []
+        check_value = {}
         cls_results = {}
         reg_results = {}
         density_list = {}
         label_list = {}
-
+        predicted_label_dict = {}
         # experiment:
 
         '''
@@ -86,28 +86,36 @@ class Uncertainty_Regression_as_less_car(Strategy):
                     self.save_points(unlabelled_batch['frame_id'][batch_inx], pred_dicts[batch_inx])
 
                     value, counts = torch.unique(pred_dicts[batch_inx]['pred_labels'], return_counts=True)
-                    if (value == 2).any() or (value == 3).any():
-                        if len(value) == 0:
-                            entropy = 0
-                        else:
-                            # calculates the shannon entropy of the predicted labels of bounding boxes
-                            unique_proportions = torch.ones(num_class).cuda()
-                            unique_proportions[value - 1] = counts.float()
-                            cls_weight = self.adding_weight_to_unique_proportions(pred_dicts, batch_inx)
-                            reg_weight = self.adding_weight_regression(pred_dicts, batch_inx)
-                            unique_proportions = (unique_proportions / sum(counts) * cls_weight * reg_weight)
-                            entropy = Categorical(probs=unique_proportions).entropy()
-                            check_value.append(entropy)
 
-                        # save the hypothetical labels for the regression heads at Stage 2
-                        cls_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_cls']
-                        reg_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_reg']
-                        # used for sorting
-                        select_dic[unlabelled_batch['frame_id'][batch_inx]] = entropy
-                        # save the density records for the Stage 3
-                        density_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx][
-                            'pred_box_unique_density']
-                        label_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['pred_labels']
+                    if len(value) == 0:
+                        entropy = 0
+                    else:
+                        # calculates the shannon entropy of the predicted labels of bounding boxes
+                        unique_proportions = torch.ones(num_class).cuda()
+                        unique_proportions[value - 1] = counts.float()
+                        cls_weight = self.adding_weight_to_unique_proportions(pred_dicts, batch_inx)
+                        reg_weight = self.adding_weight_regression(pred_dicts, batch_inx)
+                        unique_proportions = (unique_proportions / sum(counts) * cls_weight * reg_weight)
+                        entropy = Categorical(probs=unique_proportions).entropy()
+                        check_value[unlabelled_batch['frame_id'][batch_inx]] = entropy
+                    total_num_car_pred = torch.zeros(1).to('cuda:0')
+                    total_num_cyclist_pred = torch.zeros(1).to('cuda:0')
+                    total_num_pedestrain_pred = torch.zeros(1).to('cuda:0')
+
+                    for i_index in range(len(pred_dicts[batch_inx]['pred_labels'])):
+                        if pred_dicts[batch_inx]['pred_labels'][i_index] == 1:
+                            total_num_car_pred += 1
+                        elif pred_dicts[batch_inx]['pred_labels'][i_index] == 2:
+                            total_num_pedestrain_pred += 1
+                        elif pred_dicts[batch_inx]['pred_labels'][i_index] == 3:
+                            total_num_cyclist_pred += 1
+
+                    predicted_label_dict[unlabelled_batch['frame_id'][batch_inx]] = {
+                        "Car": total_num_car_pred,
+                        "Cyclist": total_num_cyclist_pred,
+                        "Pedestrian": total_num_pedestrain_pred  # Corrected spelling
+}
+                    label_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['pred_labels']
 
             if self.rank == 0:
                 pbar.update()
@@ -116,28 +124,66 @@ class Uncertainty_Regression_as_less_car(Strategy):
         if self.rank == 0:
             pbar.close()
 
-        check_value.sort()
-        log_data = [[idx, value] for idx, value in enumerate(check_value)]
-        table = wandb.Table(data=log_data, columns=['idx', 'selection_value'])
-        wandb.log({'value_dist_epoch_{}'.format(cur_epoch): wandb.plot.line(table, 'idx', 'selection_value',
-                                                                            title='value_dist_epoch_{}'.format(
-                                                                                cur_epoch))})
+        total_num_car = torch.zeros(1).to('cuda:0')
+        total_num_pedestrain = torch.zeros(1).to('cuda:0')
+        total_num_cyclist = torch.zeros(1).to('cuda:0')
+        selected_frames = []
+        index_of_greedy = 0
+        # 试试500 如何
+        while total_num_cyclist <= 2000 and len(selected_frames) <= 200:
+            if index_of_greedy == 0:  # initially, we randomly select a frame.
 
-        # sort and get selected_frames
-        select_dic = dict(sorted(select_dic.items(), key=lambda item: item[1]))
-        # narrow down the scope
-        if len(select_dic) > int(self.cfg.ACTIVE_TRAIN.SELECT_NUMS * 5):
+                for key, value in predicted_label_dict.items():
+                    Cyclist_value = value['Cyclist']
+                    if Cyclist_value != 0:
+                        total_num_car += value['Car']
+                        total_num_pedestrain += value['Pedestrian']
+                        total_num_cyclist += value['Cyclist']
+                        del predicted_label_dict[key]
+                        selected_frames.append(key)
+                        break
+                index_of_greedy += 1
+            else:
+                difference_init = float('inf')
+                best_frame = None
+                for key, value in predicted_label_dict.items():
+                    current_num_car = total_num_car + value['Car']
+                    current_num_Pedestrian = total_num_pedestrain + value['Pedestrian']
+                    current_num_Cyclist = total_num_cyclist + value['Cyclist']
 
-            selected_frames = list(select_dic.keys())[::-1][:int(self.cfg.ACTIVE_TRAIN.SELECT_NUMS * 5)]
-        else:
-            selected_frames = list(select_dic.keys())[::-1][:int(len(select_dic))]
+                    current_difference = abs(current_num_car - current_num_Pedestrian) + abs(
+                        current_num_car - current_num_Cyclist) + abs(current_num_Pedestrian - current_num_Cyclist)
 
-        selected_frames = self.sorting_out_excessive_car_samples(selected_frames, label_list)
+                    if current_difference < difference_init:
+                        difference_init = current_difference
+                        best_frame = key
+
+                total_num_car += predicted_label_dict[best_frame]['Car']
+                total_num_pedestrain += predicted_label_dict[best_frame]['Pedestrian']
+                total_num_cyclist += predicted_label_dict[best_frame]['Cyclist']
+
+                if best_frame is None:
+                    index_of_greedy += 10000
+                    break
+
+                if best_frame is not None:
+                    total_num_car += predicted_label_dict[best_frame]['Car'] if predicted_label_dict[best_frame]['Car'] is not None else 0
+                    total_num_pedestrain += predicted_label_dict[best_frame]['Pedestrian'] if predicted_label_dict[best_frame]['Pedestrian'] is not None else 0
+                    total_num_cyclist += predicted_label_dict[best_frame]['Cyclist'] if predicted_label_dict[best_frame]['Cyclist'] is not None else 0
+
+                del predicted_label_dict[best_frame]
+                selected_frames.append(best_frame)
+                index_of_greedy += 1
+
+
+
+        selected_frames = self.sorting_out_excessive_car_samples(selected_frames, check_value)
 
         # save to local
         print('successfully saved selected_all_info for epoch {} for rank {}'.format(cur_epoch, self.rank))
 
         return selected_frames
+
 
     def adding_weight_to_unique_proportions(self, pred_dicts, batch_inx):
         pred_scores = pred_dicts[batch_inx]['pred_logits']
@@ -188,19 +234,10 @@ class Uncertainty_Regression_as_less_car(Strategy):
     def sorting_out_excessive_car_samples(self, selected_frames, label_dictionary):
         car_number_dict = {}
         for i in range(len(selected_frames)):
-            predicted_label = label_dictionary[selected_frames[i]]
-            total_num_car_pred = torch.zeros(1).to('cuda:0')
-            total_num_cyclist_pred = torch.zeros(1).to('cuda:0')
-            total_num_pedestrain_pred = torch.zeros(1).to('cuda:0')
-            for i_index in range(len(predicted_label)):
-                if predicted_label[i_index] == 1:
-                    total_num_car_pred += 1
-                elif predicted_label[i_index] == 2:
-                    total_num_pedestrain_pred += 1
-                elif predicted_label[i_index] == 3:
-                    total_num_cyclist_pred += 1
-            car_number_dict[selected_frames[i]] = [total_num_car_pred, total_num_pedestrain_pred, total_num_cyclist_pred]
+            if selected_frames[i] in label_dictionary:
+                car_number_dict[selected_frames[i]] = label_dictionary[selected_frames[i]]
 
-        sorted_frames = sorted(car_number_dict, key=lambda x: car_number_dict[x][0])
 
-        return sorted_frames[:100]
+        sorted_keys = sorted(car_number_dict, key=lambda x: car_number_dict[x].item(), reverse=True)
+
+        return sorted_keys[:100]

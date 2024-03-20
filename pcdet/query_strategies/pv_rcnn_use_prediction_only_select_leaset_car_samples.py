@@ -19,10 +19,10 @@ import os
 import pickle
 
 
-class Uncertainty_Regression_as_less_car(Strategy):
+class Prediction_leaset_car_samples(Strategy):
     def __init__(self, model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg):
 
-        super(Uncertainty_Regression_as_less_car, self).__init__(model, labelled_loader, unlabelled_loader, rank,
+        super(Prediction_leaset_car_samples, self).__init__(model, labelled_loader, unlabelled_loader, rank,
                                                          active_label_dir, cfg)
 
         # coefficients controls the ratio of selected subset
@@ -65,7 +65,7 @@ class Uncertainty_Regression_as_less_car(Strategy):
         reg_results = {}
         density_list = {}
         label_list = {}
-
+        car_number_dict = {}
         # experiment:
 
         '''
@@ -87,26 +87,18 @@ class Uncertainty_Regression_as_less_car(Strategy):
 
                     value, counts = torch.unique(pred_dicts[batch_inx]['pred_labels'], return_counts=True)
                     if (value == 2).any() or (value == 3).any():
-                        if len(value) == 0:
-                            entropy = 0
-                        else:
-                            # calculates the shannon entropy of the predicted labels of bounding boxes
-                            unique_proportions = torch.ones(num_class).cuda()
-                            unique_proportions[value - 1] = counts.float()
-                            cls_weight = self.adding_weight_to_unique_proportions(pred_dicts, batch_inx)
-                            reg_weight = self.adding_weight_regression(pred_dicts, batch_inx)
-                            unique_proportions = (unique_proportions / sum(counts) * cls_weight * reg_weight)
-                            entropy = Categorical(probs=unique_proportions).entropy()
-                            check_value.append(entropy)
-
-                        # save the hypothetical labels for the regression heads at Stage 2
-                        cls_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_cls']
-                        reg_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_reg']
-                        # used for sorting
-                        select_dic[unlabelled_batch['frame_id'][batch_inx]] = entropy
-                        # save the density records for the Stage 3
-                        density_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx][
-                            'pred_box_unique_density']
+                        total_num_car_pred = torch.zeros(1).to('cuda:0')
+                        total_num_cyclist_pred = torch.zeros(1).to('cuda:0')
+                        total_num_pedestrain_pred = torch.zeros(1).to('cuda:0')
+                        for i_index in range(len(pred_dicts[batch_inx]['pred_labels'])):
+                            if pred_dicts[batch_inx]['pred_labels'][i_index] == 1:
+                                total_num_car_pred += 1
+                            elif pred_dicts[batch_inx]['pred_labels'][i_index] == 2:
+                                total_num_pedestrain_pred += 1
+                            elif pred_dicts[batch_inx]['pred_labels'][i_index] == 3:
+                                total_num_cyclist_pred += 1
+                        car_number_dict[unlabelled_batch['frame_id'][batch_inx]] = [total_num_car_pred, total_num_pedestrain_pred,
+                                                               total_num_cyclist_pred]
                         label_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['pred_labels']
 
             if self.rank == 0:
@@ -123,17 +115,8 @@ class Uncertainty_Regression_as_less_car(Strategy):
                                                                             title='value_dist_epoch_{}'.format(
                                                                                 cur_epoch))})
 
-        # sort and get selected_frames
-        select_dic = dict(sorted(select_dic.items(), key=lambda item: item[1]))
-        # narrow down the scope
-        if len(select_dic) > int(self.cfg.ACTIVE_TRAIN.SELECT_NUMS * 5):
-
-            selected_frames = list(select_dic.keys())[::-1][:int(self.cfg.ACTIVE_TRAIN.SELECT_NUMS * 5)]
-        else:
-            selected_frames = list(select_dic.keys())[::-1][:int(len(select_dic))]
-
-        selected_frames = self.sorting_out_excessive_car_samples(selected_frames, label_list)
-
+        sorted_frames = sorted(car_number_dict, key=lambda x: car_number_dict[x][0])
+        selected_frames = sorted_frames[:100]
         # save to local
         print('successfully saved selected_all_info for epoch {} for rank {}'.format(cur_epoch, self.rank))
 
