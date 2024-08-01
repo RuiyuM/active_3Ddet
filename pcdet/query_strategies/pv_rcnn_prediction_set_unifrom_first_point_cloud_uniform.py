@@ -114,7 +114,7 @@ class Set_Unifrom_invidual_uniform(Strategy):
                         "Car": total_num_car_pred,
                         "Cyclist": total_num_cyclist_pred,
                         "Pedestrian": total_num_pedestrain_pred  # Corrected spelling
-}
+                        }
                     label_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['pred_labels']
 
             if self.rank == 0:

@@ -21,7 +21,8 @@ def build_optimizer(model, optim_cfg):
             model.parameters(), lr=optim_cfg.LR, weight_decay=optim_cfg.WEIGHT_DECAY,
             momentum=optim_cfg.MOMENTUM
         )
-    elif optim_cfg.OPTIMIZER == 'adam_onecycle':
+    elif optim_cfg.OPTIMIZER in ['adam_onecycle', 'adam_cosineanneal']:
+
         def children(m: nn.Module):
             return list(m.children())
 

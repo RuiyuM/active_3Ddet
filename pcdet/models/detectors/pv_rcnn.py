@@ -19,7 +19,8 @@ class PVRCNN(Detector3DTemplate):
                 'rcnn_cls_gt': self.roi_head.forward_ret_dict['rcnn_cls_labels'],
                 'rcnn_cls': batch_dict['rcnn_cls'],
                 'rcnn_reg': batch_dict['rcnn_reg'],
-                'rpn_preds': batch_dict['rpn_preds']
+                'rpn_preds': batch_dict['rpn_preds'],
+                'roi_labels': batch_dict['roi_labels']
             }
             return ret_dict, tb_dict, disp_dict
         else:

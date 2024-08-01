@@ -128,14 +128,21 @@ class SECONDHead(RoIHeadTemplate):
 
         shared_features = self.shared_fc_layer(pooled_features.view(batch_size_rcnn, -1, 1))
         rcnn_iou = self.iou_layers(shared_features).transpose(1, 2).contiguous().squeeze(dim=1)  # (B*N, 1)
-
         if not self.training:
+            if self.model_cfg.get('SAMPLING_ROUND', None):
+                rcnn_iou_list = [rcnn_iou]
+                for i in range(self.model_cfg.SAMPLING_ROUND - 1):
+                    shared_features = self.shared_fc_layer(pooled_features.view(batch_size_rcnn, -1, 1))
+                    rcnn_iou = self.iou_layers(shared_features).transpose(1, 2).contiguous().squeeze(dim=1)  # (B*N, 1)
+                    rcnn_iou_list.append(rcnn_iou)
+                batch_dict['rcnn_iou'] = torch.stack(rcnn_iou_list, 0)
+
             batch_dict['batch_cls_preds'] = rcnn_iou.view(batch_dict['batch_size'], -1, rcnn_iou.shape[-1])
             batch_dict['batch_box_preds'] = batch_dict['rois']
             batch_dict['cls_preds_normalized'] = False
         else:
             targets_dict['rcnn_iou'] = rcnn_iou
-
+            batch_dict['rcnn_iou'] = rcnn_iou
             self.forward_ret_dict = targets_dict
 
         return batch_dict

@@ -409,6 +409,7 @@ class Detector3DTemplate(nn.Module):
                 'pred_labels': final_labels,
                 'pred_box_unique_density': pred_box_unique_density,
                 'point_features': batch_dict['point_features'],
+                'roi_labels': batch_dict['roi_labels'],
 
             }
             pred_dicts.append(record_dict)

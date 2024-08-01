@@ -19,10 +19,10 @@ import os
 import pickle
 
 
-class Uncertainty_Regression_CRBSampling(Strategy):
+class Uncertainty_Regression_CRBSampling_change_entropy(Strategy):
     def __init__(self, model, labelled_loader, unlabelled_loader, rank, active_label_dir, cfg):
 
-        super(Uncertainty_Regression_CRBSampling, self).__init__(model, labelled_loader, unlabelled_loader, rank,
+        super(Uncertainty_Regression_CRBSampling_change_entropy, self).__init__(model, labelled_loader, unlabelled_loader, rank,
                                                          active_label_dir, cfg)
 
         # coefficients controls the ratio of selected subset
@@ -85,29 +85,62 @@ class Uncertainty_Regression_CRBSampling(Strategy):
                 for batch_inx in range(len(pred_dicts)):
                     # save the meta information and project it to the wandb dashboard
                     self.save_points(unlabelled_batch['frame_id'][batch_inx], pred_dicts[batch_inx])
-
+                    cls_weight = self.adding_weight_to_unique_proportions(pred_dicts, batch_inx)
+                    reg_weight = self.adding_weight_regression(pred_dicts, batch_inx)
                     value, counts = torch.unique(pred_dicts[batch_inx]['pred_labels'], return_counts=True)
                     if len(value) == 0:
                         entropy = 0
+                    elif len(value) == 1:
+                        # Only one class present
+                        unique_proportions = torch.zeros(num_class).cuda()
+                        existing_class_index = value[0] - 1
+                        existing_count = counts.float().item()
+                        unique_proportions[existing_class_index] = existing_count
+
+                        # Calculate missing classes' counts based on your requirements
+                        missing_classes_indices = [i for i in range(num_class) if i != existing_class_index]
+                        unique_proportions[missing_classes_indices[0]] = 3 * existing_count
+                        if len(missing_classes_indices) > 1:
+                            unique_proportions[missing_classes_indices[1]] = 6 * existing_count
+
+                        # Calculate entropy
+                        unique_proportions = (unique_proportions / unique_proportions.sum() * cls_weight * reg_weight)
+                        entropy = Categorical(probs=unique_proportions).entropy()
+                    elif len(value) == 2:
+                        # Two classes present, adjust the count for the missing class
+                        unique_proportions = torch.zeros(num_class).cuda()
+                        unique_proportions[value - 1] = counts.float()
+
+                        # Find the missing class and adjust its count
+                        missing_class_index = [i for i in range(1, num_class + 1) if i not in value.cpu().numpy()][
+                                                  0] - 1
+                        missing_class_count = 6 * counts.float().mean().item()
+                        unique_proportions[
+                            missing_class_index] = missing_class_count  # Adjusted as per the updated requirement
+
+                        # Calculate entropy
+                        unique_proportions = (unique_proportions / unique_proportions.sum() * cls_weight * reg_weight)
+                        entropy = Categorical(probs=unique_proportions).entropy()
                     else:
-                        # calculates the shannon entropy of the predicted labels of bounding boxes
+                        # Three or more classes present
                         unique_proportions = torch.ones(num_class).cuda()
                         unique_proportions[value - 1] = counts.float()
-                        cls_weight = self.adding_weight_to_unique_proportions(pred_dicts, batch_inx)
-                        reg_weight = self.adding_weight_regression(pred_dicts, batch_inx)
-                        unique_proportions = (unique_proportions / sum(counts) * cls_weight * reg_weight)
+
+                        # Calculate entropy
+                        # unique_proportions = (unique_proportions / sum(counts) * cls_weight * reg_weight)
+                        unique_proportions = (unique_proportions / unique_proportions.sum() * cls_weight * reg_weight)
                         entropy = Categorical(probs=unique_proportions).entropy()
-                        check_value.append(entropy)
+                    check_value.append(entropy)
 
                     # save the hypothetical labels for the regression heads at Stage 2
-                    cls_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_cls']
-                    reg_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_reg']
+                    # cls_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_cls']
+                    # reg_results[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['batch_rcnn_reg']
                     # used for sorting
                     select_dic[unlabelled_batch['frame_id'][batch_inx]] = entropy
                     # save the density records for the Stage 3
-                    density_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx][
-                        'pred_box_unique_density']
-                    label_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx]['pred_labels']
+                    # density_list[unlabelled_batch['frame_id'][batch_inx]] = pred_dicts[batch_inx][
+                    #     'pred_box_unique_density']
+
 
             if self.rank == 0:
                 pbar.update()
@@ -116,12 +149,7 @@ class Uncertainty_Regression_CRBSampling(Strategy):
         if self.rank == 0:
             pbar.close()
 
-        check_value.sort()
-        log_data = [[idx, value] for idx, value in enumerate(check_value)]
-        table = wandb.Table(data=log_data, columns=['idx', 'selection_value'])
-        wandb.log({'value_dist_epoch_{}'.format(cur_epoch): wandb.plot.line(table, 'idx', 'selection_value',
-                                                                            title='value_dist_epoch_{}'.format(
-                                                                                cur_epoch))})
+
 
         # sort and get selected_frames
         select_dic = dict(sorted(select_dic.items(), key=lambda item: item[1]))

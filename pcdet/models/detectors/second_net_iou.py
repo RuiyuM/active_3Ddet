@@ -48,10 +48,10 @@ class SECONDNetIoU(Detector3DTemplate):
         alpha = torch.zeros(cls_scores.shape, dtype=torch.float32).cuda()
         alpha[num_points_in_gt <= cls_thresh] = 0
         alpha[num_points_in_gt >= iou_thresh] = 1
-        
+
         mask = ((num_points_in_gt > cls_thresh) & (num_points_in_gt < iou_thresh))
         alpha[mask] = (num_points_in_gt[mask] - 10) / (iou_thresh - cls_thresh)
-        
+
         scores = (1 - alpha) * cls_scores + alpha * iou_scores
 
         return scores
@@ -89,6 +89,9 @@ class SECONDNetIoU(Detector3DTemplate):
         batch_size = batch_dict['batch_size']
         recall_dict = {}
         pred_dicts = []
+        rcnn_iou = torch.mean(torch.sigmoid(batch_dict['rcnn_iou']), 0).view(batch_size, -1,
+                                                                             1) if 'rcnn_iou' in batch_dict.keys() and len(
+            batch_dict['rcnn_iou'].shape) > 2 else None
         for index in range(batch_size):
             if batch_dict.get('batch_index', None) is not None:
                 assert batch_dict['batch_cls_preds'].shape.__len__() == 2
@@ -100,7 +103,7 @@ class SECONDNetIoU(Detector3DTemplate):
             box_preds = batch_dict['batch_box_preds'][batch_mask]
             iou_preds = batch_dict['batch_cls_preds'][batch_mask]
             cls_preds = batch_dict['roi_scores'][batch_mask]
-
+            batch_rcnn_iou = rcnn_iou[batch_mask, :] if rcnn_iou is not None else None
             src_iou_preds = iou_preds
             src_box_preds = box_preds
             src_cls_preds = cls_preds
@@ -114,7 +117,8 @@ class SECONDNetIoU(Detector3DTemplate):
                 raise NotImplementedError
             else:
                 iou_preds, label_preds = torch.max(iou_preds, dim=-1)
-                label_preds = batch_dict['roi_labels'][index] if batch_dict.get('has_class_labels', False) else label_preds + 1
+                label_preds = batch_dict['roi_labels'][index] if batch_dict.get('has_class_labels',
+                                                                                False) else label_preds + 1
 
                 if post_process_cfg.NMS_CONFIG.get('SCORE_BY_CLASS', None) and \
                         post_process_cfg.NMS_CONFIG.SCORE_TYPE == 'score_by_class':
@@ -136,10 +140,10 @@ class SECONDNetIoU(Detector3DTemplate):
                     num_pts_in_gt = roiaware_pool3d_utils.points_in_boxes_cpu(
                         batch_points.cpu(), box_preds[:, 0:7].cpu()
                     ).sum(dim=1).float().cuda()
-                    
+
                     score_thresh_cfg = post_process_cfg.NMS_CONFIG.SCORE_THRESH
                     nms_scores = self.cal_scores_by_npoints(
-                        cls_preds, iou_preds, num_pts_in_gt, 
+                        cls_preds, iou_preds, num_pts_in_gt,
                         score_thresh_cfg.cls, score_thresh_cfg.iou
                     )
                 else:
@@ -168,6 +172,7 @@ class SECONDNetIoU(Detector3DTemplate):
                 'pred_boxes': final_boxes,
                 'pred_scores': final_scores,
                 'pred_labels': final_labels,
+                'batch_rcnn_iou': batch_rcnn_iou,
                 'pred_cls_scores': cls_preds[selected],
                 'pred_iou_scores': iou_preds[selected]
             }

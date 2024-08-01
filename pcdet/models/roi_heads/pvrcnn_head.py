@@ -204,7 +204,7 @@ class PVRCNNHead(RoIHeadTemplate):
             elif self.model_cfg.get('EMBEDDING_REQUIRED', None):
                 batch_dict['shared_features'] = shared_features
 
-            # inference at the test time
+            # not used
             if 'box_label' in self.model_cfg.get('SAMPLING_FEAT', []) and 'test' in batch_dict.keys():
                 batch_cls_preds_list = []
                 batch_box_preds_list = []
@@ -229,7 +229,7 @@ class PVRCNNHead(RoIHeadTemplate):
 
  
             
-            batch_dict['cls_preds_normalized'] = False
+                batch_dict['cls_preds_normalized'] = False
         else:
             targets_dict['rcnn_cls'] = rcnn_cls
             targets_dict['rcnn_reg'] = rcnn_reg

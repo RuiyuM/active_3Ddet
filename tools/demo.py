@@ -18,7 +18,7 @@ from pcdet.config import cfg, cfg_from_yaml_file
 from pcdet.datasets import DatasetTemplate
 from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
-
+import pickle
 
 class DemoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, ext='.bin'):
@@ -93,7 +93,9 @@ def main():
     with torch.no_grad():
         for idx, data_dict in enumerate(demo_dataset):
             logger.info(f'Visualized sample index: \t{idx + 1}')
-            data_dict = demo_dataset.collate_batch([data_dict])
+            with open('unlabelled_batch.pickle', 'rb') as file:
+                loaded_dict = pickle.load(file)
+            data_dict = loaded_dict
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 

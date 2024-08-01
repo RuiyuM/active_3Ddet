@@ -81,10 +81,10 @@ class Regression_confi_CRBSampling(Strategy):
             with torch.no_grad():
                 load_data_to_gpu(unlabelled_batch)
                 pred_dicts, _ = self.model(unlabelled_batch)
-                all_pred_dicts.append(pred_dicts)
+                # all_pred_dicts.append(pred_dicts)
                 for batch_inx in range(len(pred_dicts)):
                     # save the meta information and project it to the wandb dashboard
-                    self.save_points(unlabelled_batch['frame_id'][batch_inx], pred_dicts[batch_inx])
+                    # self.save_points(unlabelled_batch['frame_id'][batch_inx], pred_dicts[batch_inx])
 
                     value, counts = torch.unique(pred_dicts[batch_inx]['pred_labels'], return_counts=True)
                     if len(value) == 0:

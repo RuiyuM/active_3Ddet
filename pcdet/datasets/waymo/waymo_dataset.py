@@ -457,13 +457,8 @@ if __name__ == '__main__':
     parser.add_argument('--cfg_file', type=str, default=None, help='specify the config of dataset')
     parser.add_argument('--func', type=str, default='create_waymo_infos', help='')
     parser.add_argument('--processed_data_tag', type=str, default='waymo_processed_data_v0_5_0', help='')
-    parser.add_argument('--data_path', default='/data/rxm210041', help='')
     args = parser.parse_args()
 
-    if args.data_path is not None:
-        ROOT_DIR = (Path(args.data_path)).resolve()
-    else:
-        ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
     if args.func == 'create_waymo_infos':
         import yaml
         from easydict import EasyDict
@@ -472,6 +467,7 @@ if __name__ == '__main__':
         except:
             yaml_config = yaml.safe_load(open(args.cfg_file))
         dataset_cfg = EasyDict(yaml_config)
+        ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         create_waymo_infos(
             dataset_cfg=dataset_cfg,

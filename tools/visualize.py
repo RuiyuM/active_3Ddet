@@ -18,7 +18,7 @@ from pcdet.models import build_network
 from pcdet.utils import common_utils
 import wandb
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ["CUDA_LAUNCH_BLOCKING"]="0"
 
 
@@ -95,7 +95,7 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, cur_epoc
 
     # active_label_files = [active_label_file]
     num_bbox = 0
-    for i in range(6):
+    for i in range(4):
         z = i + 1
         new_epoch_id = str(int(cur_epoch_id) - z *40)
         active_label_file = os.path.join(args.set_cfgs, 'active_label',

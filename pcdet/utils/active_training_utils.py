@@ -270,7 +270,7 @@ def select_active_labels(model,
       
         selected_frames = strategy.query(leave_pbar, cur_epoch)
         strategy.save_active_labels(selected_frames=selected_frames, cur_epoch=cur_epoch)
-        strategy.update_dashboard(cur_epoch=cur_epoch, accumulated_iter=accumulated_iter)
+        # strategy.update_dashboard(cur_epoch=cur_epoch, accumulated_iter=accumulated_iter)
 
     
     # get selected frame id list and infos
