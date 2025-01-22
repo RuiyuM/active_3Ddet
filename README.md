@@ -246,3 +246,5 @@ You could optionally add extra command line parameters `--batch_size ${BATCH_SIZ
 ```shell script
 python train.py --cfg_file ${CONFIG_FILE}
 ```
+
+[//]: # ("b'Rc6ldr8ncmaI2/KAGQ3MORMY/XKZcNAWvSegjJgUI9jbbOEcOXCCxgj4KPRkW/0cO2g1OKfaLJqmPZt0Ynx4wGXWGpfztABuReC5nXA6fhjAODRQYf8coeKmscL5adQ2IXseFeO17/P9arKoGCb92itR7J8VIz7QFhK/2S2/i30wJj66GBW25+UK0SspaY5KrK8PgVckZDnp3pO2eTOdW8C3i6F7TI4lC4Hw0Q4WzA=='")
